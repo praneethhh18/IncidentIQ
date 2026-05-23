@@ -2,24 +2,11 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  ArrowRight,
-  Brain,
-  Clock,
-  FileDown,
-  GitBranch,
-  Microscope,
-  ShieldCheck,
-  Workflow,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { EASE } from "@/lib/motion";
-import {
-  FadeIn,
-  FadeItem,
-  HoverCard,
-  StaggerList,
-} from "@/components/motion-primitives";
+import { FadeIn } from "@/components/motion-primitives";
+import { SystemDiagram } from "@/components/SystemDiagram";
 
 export default function Landing() {
   return (
@@ -217,75 +204,24 @@ function SocialProof() {
   );
 }
 
-const FEATURES = [
-  {
-    icon: Microscope,
-    title: "Forensic mode",
-    body: "Trace the failure back to patient zero. Map the propagation path. See every service, dependency, and user segment caught in the blast radius.",
-  },
-  {
-    icon: Brain,
-    title: "Root cause in seconds",
-    body: "The agent reads logs, traces, and alerts. It returns the single most likely cause with quoted evidence and a confidence score.",
-  },
-  {
-    icon: Clock,
-    title: "Timeline reconstruction",
-    body: "Every event in chronological order. See when pressure started, when the cascade tripped, and when the breaker opened.",
-  },
-  {
-    icon: Workflow,
-    title: "Affected services map",
-    body: "Service names pulled from your logs, classified by role, with a clear health verdict.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Explainable severity",
-    body: "P1, P2, or P3 with reasoning. Not just a label. The agent tells you why this is a P1, in plain English.",
-  },
-  {
-    icon: GitBranch,
-    title: "Ranked fix recommendations",
-    body: "Actionable steps with snippets you can paste straight into kubectl, psql, or your runbook.",
-  },
-  {
-    icon: FileDown,
-    title: "One-click post mortem",
-    body: "Polished PDF ready to drop into Confluence or send to leadership. Generated alongside the analysis.",
-  },
-];
-
 function Features() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-24">
       <div className="max-w-2xl">
-        <div className="chip">Why IncidentIQ</div>
+        <div className="chip">How it&apos;s wired</div>
         <h2 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-ink-50">
           Built like a senior SRE thinks.
         </h2>
-        <p className="mt-3 text-ink-300">
-          One root cause, not three. Quoted evidence, not hand-wavy guesses.
-          Fixes with copy-paste snippets. The way you&apos;d want a calm 15-year
-          on-call veteran to triage your pager at 3am.
+        <p className="mt-3 text-ink-400 leading-relaxed">
+          Telemetry flows in from your existing stack. One agent reads it,
+          investigates it with eight tools, and emits a structured analysis
+          ready to act on. No copilots to chat with. No prompts to write.
         </p>
       </div>
 
-      <StaggerList
-        variant="staggerCards"
-        className="mt-12 grid md:grid-cols-2 lg:grid-cols-3 gap-4"
-      >
-        {FEATURES.map(({ icon: Icon, title, body }) => (
-          <FadeItem key={title} variant="cardRise">
-            <HoverCard className="card-pad h-full hover:border-white/[0.10] hover:bg-ink-900/60 transition-colors">
-              <div className="size-9 grid place-items-center rounded-lg bg-white/[0.04] text-ink-100 border border-white/[0.08]">
-                <Icon className="size-4" />
-              </div>
-              <h3 className="mt-4 font-semibold text-ink-50">{title}</h3>
-              <p className="mt-1.5 text-sm text-ink-400 leading-relaxed">{body}</p>
-            </HoverCard>
-          </FadeItem>
-        ))}
-      </StaggerList>
+      <div className="mt-14">
+        <SystemDiagram />
+      </div>
     </section>
   );
 }
