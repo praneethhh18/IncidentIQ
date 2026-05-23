@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  AnimatePresence,
-  motion,
-  useScroll,
-  useTransform,
-} from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
 import { EASE } from "@/lib/motion";
 import { FadeIn } from "@/components/motion-primitives";
 import { BeforeAfterCTA } from "@/components/BeforeAfterCTA";
+import { ScrollRevealText } from "@/components/ScrollRevealText";
 import { SystemDiagram } from "@/components/SystemDiagram";
 
 import { cn } from "@/lib/utils";
@@ -502,152 +498,45 @@ function Features() {
   );
 }
 
-const STEPS = [
-  {
-    n: "01",
-    title: "Connect or paste",
-    body: "Wire up Datadog, Grafana, or New Relic. Or just paste raw logs and drop a file. Works either way.",
-  },
-  {
-    n: "02",
-    title: "Analyze",
-    body: "The agent runs eight investigation tools across the telemetry, then synthesises a structured analysis.",
-  },
-  {
-    n: "03",
-    title: "Triage in seconds",
-    body: "Root cause, timeline, severity, affected services, ranked fixes, and a PDF post mortem.",
-  },
-];
 
 function HowItWorks() {
-  // Anchor scroll to the row of step nodes (not the whole section), so
-  // the progress line starts filling exactly when the first node enters
-  // view and reaches 100% just as the last node centers in the viewport.
-  const nodesRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: nodesRef,
-    offset: ["start 70%", "end 60%"],
-  });
-
   return (
     <section className="border-t border-white/[0.05] bg-ink-950/60">
-      <div className="mx-auto max-w-7xl px-6 py-24 grid lg:grid-cols-[1fr,2fr] gap-12">
-        <div className="lg:sticky lg:top-24 lg:self-start">
+      <div className="mx-auto max-w-5xl px-6 py-32">
+        {/* Eyebrow + tight subhead. Stays compact so the focus stays on
+            the revealing panel below. */}
+        <div className="text-center max-w-xl mx-auto">
           <div className="chip">How it works</div>
           <h2 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-ink-50">
-            Three steps.
-            <br />
-            Zero noise.
+            Three steps. Zero noise.
           </h2>
-          <p className="mt-3 text-ink-400 leading-relaxed">
-            No agents to install. No log shipping to set up. IncidentIQ talks
-            to your existing observability stack and gets out of the way.
-          </p>
         </div>
 
-        {/* Steps. Each step is a self-contained card at full opacity. A
-            single vertical rail runs through the LEFT EDGE of the cards,
-            threading the number nodes. The rail fills with violet as the
-            user scrolls down the section. Each node lights up when the
-            scroll progress passes its position. */}
-        <div ref={nodesRef} className="relative">
-          {/* Track and animated fill, positioned to align with node centers */}
-          <span
-            aria-hidden
-            className="absolute left-[1.5rem] top-6 bottom-6 w-px bg-white/[0.06]"
-          />
-          <motion.span
-            aria-hidden
-            style={{ scaleY: scrollYProgress }}
-            className="absolute left-[1.5rem] top-6 bottom-6 w-px origin-top bg-gradient-to-b from-violet-400 via-violet-300 to-white shadow-[0_0_12px_rgba(167,139,250,0.4)]"
-          />
+        {/* Reveal panel. A single contained card that holds the entire
+            scroll narration. Overflow is hidden so nothing escapes the
+            rounded border, and max-w is on the outer wrapper so the
+            inside text doesn't run beyond comfortable reading width. */}
+        <div className="mt-14 mx-auto rounded-3xl border border-white/[0.06] bg-ink-900/30 backdrop-blur-sm overflow-hidden">
+          <div className="px-8 md:px-14 py-16 md:py-20">
+            <ScrollRevealText className="text-2xl md:text-[28px] font-semibold tracking-tight text-ink-50 leading-[1.45]">
+              {`
+                **01.** First, **connect** Datadog, Grafana, or New Relic.
+                Or paste raw logs and drop a file. **Works either way.**
 
-          <ol className="space-y-6">
-            {STEPS.map((step, i) => (
-              <FlowStep
-                key={step.n}
-                step={step}
-                index={i}
-                total={STEPS.length}
-                scrollYProgress={scrollYProgress}
-              />
-            ))}
-          </ol>
+                **02.** The agent runs **eight investigation tools**
+                across the telemetry, then synthesises a structured
+                analysis with quoted evidence.
+
+                **03.** In **under ten seconds**, you get the root cause,
+                a reconstructed timeline, a severity verdict, ranked
+                fixes with copy-paste snippets, and a polished
+                **post mortem PDF** ready to share.
+              `}
+            </ScrollRevealText>
+          </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function FlowStep({
-  step,
-  index,
-  total,
-  scrollYProgress,
-}: {
-  step: { n: string; title: string; body: string };
-  index: number;
-  total: number;
-  scrollYProgress: ReturnType<typeof useScroll>["scrollYProgress"];
-}) {
-  // This step "activates" when the scroll fill passes its node. We map
-  // each step to a slice of the 0..1 scroll range and track whether
-  // we're past it.
-  const threshold = (index + 0.5) / total;
-  const [reached, setReached] = useState(false);
-  useEffect(() => {
-    const unsubscribe = scrollYProgress.on("change", (v) => {
-      setReached(v >= threshold - 0.02);
-    });
-    return unsubscribe;
-  }, [scrollYProgress, threshold]);
-
-  return (
-    <li className="relative grid grid-cols-[3rem,1fr] items-start gap-5">
-      {/* Number node — sits on the vertical rail */}
-      <div className="relative grid place-items-center pt-5">
-        <motion.span
-          aria-hidden
-          className="absolute size-12 rounded-full pointer-events-none"
-          animate={{
-            boxShadow: reached
-              ? "0 0 0 1px rgba(167, 139, 250, 0.55), 0 0 32px -4px rgba(167, 139, 250, 0.55)"
-              : "0 0 0 0px rgba(167, 139, 250, 0)",
-          }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        />
-        <span
-          className={cn(
-            "relative grid place-items-center size-12 rounded-full font-mono tabular-nums text-sm transition-colors duration-500 z-10",
-            reached
-              ? "bg-ink-950 text-ink-50 border border-violet-400/50"
-              : "bg-ink-950 text-ink-500 border border-white/[0.10]",
-          )}
-        >
-          {step.n}
-        </span>
-      </div>
-
-      {/* Step card — always full opacity. Gets a subtle violet border
-          tint once the user scrolls past it, but never dims. */}
-      <motion.div
-        animate={{
-          borderColor: reached
-            ? "rgba(167, 139, 250, 0.20)"
-            : "rgba(255, 255, 255, 0.06)",
-        }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="rounded-2xl border bg-ink-900/40 p-5"
-      >
-        <div className="font-semibold text-ink-50 text-[15px]">
-          {step.title}
-        </div>
-        <div className="mt-1.5 text-[13.5px] text-ink-400 leading-relaxed">
-          {step.body}
-        </div>
-      </motion.div>
-    </li>
   );
 }
 
