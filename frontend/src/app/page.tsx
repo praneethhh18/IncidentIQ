@@ -1,13 +1,16 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
 import { EASE } from "@/lib/motion";
-import { FadeIn } from "@/components/motion-primitives";
+import { CountUp, FadeIn } from "@/components/motion-primitives";
 import { BeforeAfterCTA } from "@/components/BeforeAfterCTA";
 import { SystemDiagram } from "@/components/SystemDiagram";
+
+import { cn } from "@/lib/utils";
 
 export default function Landing() {
   return (
@@ -74,7 +77,48 @@ function Hero() {
   );
 }
 
+const CASCADE_EVENTS = [
+  { t: "02:58:12", l: "DB pool pressure begins", s: "p3" as const },
+  { t: "02:59:11", l: "Pool exhausted", s: "p2" as const },
+  { t: "02:59:18", l: "Redis CLUSTERDOWN", s: "p1" as const },
+  { t: "03:00:02", l: "Circuit breaker opens", s: "p1" as const },
+  { t: "03:00:14", l: "payments-worker OOM", s: "p1" as const },
+];
+
 function HeroPreview() {
+  // ── Live cascade replay state ──────────────────────────────────────
+  // Cycles through the timeline events to show the failure propagating
+  // in real time. Once all events are surfaced, holds briefly, then
+  // resets. This is the part that makes the hero feel alive.
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const step = setInterval(() => {
+      setActive((i) => (i + 1) % (CASCADE_EVENTS.length + 2));
+    }, 900);
+    return () => clearInterval(step);
+  }, []);
+  const surfaced = Math.min(active, CASCADE_EVENTS.length);
+
+  // ── 3D parallax tilt on mouse ──────────────────────────────────────
+  // Subtle rotation tracked by springs so motion feels weighted. Tilt
+  // axes are inverted between X and Y so the card "looks at" the
+  // cursor rather than away from it.
+  const tiltX = useSpring(useMotionValue(0), { stiffness: 220, damping: 28 });
+  const tiltY = useSpring(useMotionValue(0), { stiffness: 220, damping: 28 });
+  const transform = useMotionTemplate`perspective(1400px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+
+  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    tiltY.set(px * 5); // ±2.5deg
+    tiltX.set(-py * 4); // ±2deg
+  };
+  const onMouseLeave = () => {
+    tiltX.set(0);
+    tiltY.set(0);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.99 }}
@@ -82,8 +126,13 @@ function HeroPreview() {
       transition={{ duration: 0.7, ease: EASE, delay: 0.35 }}
       className="relative mx-auto max-w-6xl px-6 pb-20"
     >
-      <div className="relative rounded-2xl border border-white/[0.07] bg-ink-900/60 backdrop-blur overflow-hidden shadow-glow">
-        {/* Header bar: severity, incident id, duration */}
+      <motion.div
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+        style={{ transform, transformStyle: "preserve-3d" }}
+        className="relative rounded-2xl border border-white/[0.07] bg-ink-900/60 backdrop-blur overflow-hidden shadow-glow"
+      >
+        {/* Header bar */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.05] bg-ink-900/80">
           <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold text-sev-p1 bg-sev-p1/10 border border-sev-p1/25">
             <span className="size-1.5 rounded-full bg-sev-p1" />
@@ -96,8 +145,14 @@ function HeroPreview() {
           <span className="text-[11.5px] text-ink-400 truncate">
             Cascading checkout failure
           </span>
-          <span className="ml-auto font-mono text-[11px] text-ink-500 tabular-nums">
-            3.1s
+          <span className="ml-auto flex items-center gap-1.5">
+            <span className="relative inline-flex size-1.5">
+              <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-70" />
+              <span className="relative size-1.5 rounded-full bg-emerald-400" />
+            </span>
+            <span className="font-mono text-[10.5px] text-ink-400 tabular-nums tracking-wider">
+              LIVE REPLAY
+            </span>
           </span>
         </div>
 
@@ -119,62 +174,104 @@ function HeroPreview() {
             </p>
 
             <div className="mt-6 grid grid-cols-3 gap-x-6 gap-y-1">
-              <Stat label="Confidence" value="92%" />
-              <Stat label="Services" value="5" />
-              <Stat label="Blast radius" value="7" />
+              <Stat label="Confidence">
+                <CountUp to={92} format={(n) => `${n}%`} />
+              </Stat>
+              <Stat label="Services">
+                <CountUp to={5} />
+              </Stat>
+              <Stat label="Blast radius">
+                <CountUp to={7} />
+              </Stat>
             </div>
           </div>
 
-          {/* Right: timeline */}
+          {/* Right: live cascade replay */}
           <div className="p-7 bg-ink-950/30">
-            <div className="text-[10.5px] uppercase tracking-[0.18em] text-ink-500 font-semibold mb-4">
-              Timeline
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[10.5px] uppercase tracking-[0.18em] text-ink-500 font-semibold">
+                Cascade
+              </div>
+              <div className="font-mono text-[10.5px] text-ink-500 tabular-nums">
+                step {Math.min(surfaced, CASCADE_EVENTS.length)}/{CASCADE_EVENTS.length}
+              </div>
             </div>
             <ol className="relative space-y-3">
               <span className="absolute left-[3.95rem] top-1 bottom-1 w-px bg-white/[0.06]" />
-              {[
-                { t: "02:58:12", l: "DB pool pressure begins", s: "p3" },
-                { t: "02:59:11", l: "Pool exhausted", s: "p2" },
-                { t: "02:59:18", l: "Redis CLUSTERDOWN", s: "p1" },
-                { t: "03:00:02", l: "Circuit breaker opens", s: "p1" },
-                { t: "03:00:14", l: "payments-worker OOM", s: "p1" },
-              ].map((event, i) => (
-                <motion.li
-                  key={event.t}
-                  initial={{ opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{
-                    duration: 0.35,
-                    ease: EASE,
-                    delay: 0.65 + i * 0.08,
-                  }}
-                  className="relative grid grid-cols-[3.6rem,1rem,1fr] items-center gap-2 text-[12.5px]"
-                >
-                  <span className="font-mono text-[10.5px] text-ink-500 tabular-nums text-right">
-                    {event.t}
-                  </span>
-                  <span className="grid place-items-center">
-                    <span className={`sev-dot sev-dot-${event.s} ring-4 ring-ink-950`} />
-                  </span>
-                  <span className="text-ink-200 truncate">{event.l}</span>
-                </motion.li>
-              ))}
+              {CASCADE_EVENTS.map((event, i) => {
+                const state =
+                  i < surfaced ? "past" : i === surfaced ? "active" : "future";
+                return (
+                  <li
+                    key={event.t}
+                    className="relative grid grid-cols-[3.6rem,1rem,1fr] items-center gap-2 text-[12.5px]"
+                  >
+                    <span
+                      className={cn(
+                        "font-mono text-[10.5px] tabular-nums text-right transition-colors duration-300",
+                        state === "future" ? "text-ink-700" : "text-ink-500",
+                      )}
+                    >
+                      {event.t}
+                    </span>
+                    <span className="grid place-items-center">
+                      <motion.span
+                        animate={
+                          state === "active"
+                            ? { scale: [1, 1.4, 1] }
+                            : { scale: 1 }
+                        }
+                        transition={{
+                          duration: 0.8,
+                          repeat: state === "active" ? Infinity : 0,
+                          ease: "easeInOut",
+                        }}
+                        className={cn(
+                          "sev-dot ring-4 ring-ink-950 transition-all duration-300",
+                          `sev-dot-${event.s}`,
+                          state === "future" && "opacity-25 !shadow-none",
+                          state === "past" && "opacity-90",
+                          state === "active" && "opacity-100",
+                        )}
+                      />
+                    </span>
+                    <span
+                      className={cn(
+                        "truncate transition-colors duration-300",
+                        state === "future"
+                          ? "text-ink-700"
+                          : state === "active"
+                          ? "text-ink-50 font-medium"
+                          : "text-ink-300",
+                      )}
+                    >
+                      {event.l}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
           </div>
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <div className="text-[10px] uppercase tracking-[0.16em] text-ink-500 font-semibold">
         {label}
       </div>
       <div className="text-[22px] font-semibold tracking-tight text-ink-50 tabular-nums mt-1">
-        {value}
+        {children}
       </div>
     </div>
   );
