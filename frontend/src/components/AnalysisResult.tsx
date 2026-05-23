@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -6,14 +9,18 @@ import {
   Cpu,
   FileDown,
   Hash,
+  ScanSearch,
+  Loader2,
 } from "lucide-react";
 
-import type { AnalyzeResponse } from "@/lib/types";
 import { api } from "@/lib/api";
+import type { AnalyzeResponse } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
 import { AgentTrail } from "./AgentTrail";
 import { BusinessImpactCard } from "./BusinessImpactCard";
+import { DeepTraceBanner } from "./DeepTraceBanner";
+import { DeepTracePanel } from "./DeepTracePanel";
 import { EvidenceList } from "./EvidenceList";
 import { FiveWhysCard } from "./FiveWhysCard";
 import { FixRecommendations } from "./FixRecommendations";
@@ -24,12 +31,31 @@ import { ServiceGraph } from "./ServiceGraph";
 import { SeverityBadge } from "./SeverityBadge";
 
 export function AnalysisResult({
-  analysis,
+  analysis: initial,
   showAgentTrail = true,
+  rawLogs,
 }: {
   analysis: AnalyzeResponse;
   showAgentTrail?: boolean;
+  rawLogs?: string;
 }) {
+  const [analysis, setAnalysis] = useState<AnalyzeResponse>(initial);
+  const [deepRunning, setDeepRunning] = useState(false);
+  const [deepError, setDeepError] = useState<string | null>(null);
+
+  const runDeepTrace = async (reason?: string) => {
+    setDeepRunning(true);
+    setDeepError(null);
+    try {
+      const updated = await api.deepTrace(analysis.incident_id, rawLogs, reason);
+      setAnalysis(updated);
+    } catch (err) {
+      setDeepError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeepRunning(false);
+    }
+  };
+
   return (
     <div className="space-y-5 animate-fade-in">
       <header className="card-pad">
@@ -53,6 +79,30 @@ export function AnalysisResult({
             </span>
           ) : null}
           <div className="ml-auto flex items-center gap-2">
+            {!analysis.deep_trace ? (
+              <button
+                onClick={() => runDeepTrace("Manually invoked from analysis header.")}
+                disabled={deepRunning || !rawLogs}
+                title={
+                  rawLogs
+                    ? "Run the emergency deep-trace investigator"
+                    : "Open the incident from the dashboard to enable deep trace"
+                }
+                className="btn px-3 py-1.5 text-[12.5px] bg-amber-500/10 text-amber-200 border border-amber-500/40 hover:bg-amber-500/20"
+              >
+                {deepRunning ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Deep tracing…
+                  </>
+                ) : (
+                  <>
+                    <ScanSearch className="size-3.5" />
+                    Run Deep Trace
+                  </>
+                )}
+              </button>
+            ) : null}
             <a
               href={api.exportPdfUrl(analysis.incident_id)}
               className="btn-secondary px-3 py-1.5 text-[12.5px]"
@@ -73,6 +123,24 @@ export function AnalysisResult({
         </h2>
         <p className="mt-3 text-ink-300 leading-relaxed">{analysis.summary}</p>
       </header>
+
+      {analysis.should_escalate && !analysis.deep_trace ? (
+        <DeepTraceBanner
+          reason={analysis.escalation_reason}
+          running={deepRunning}
+          onRun={() => runDeepTrace(analysis.escalation_reason)}
+        />
+      ) : null}
+
+      {deepError ? (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 px-3 py-2 text-[13px]">
+          Deep Trace failed: {deepError}
+        </div>
+      ) : null}
+
+      {analysis.deep_trace ? (
+        <DeepTracePanel report={analysis.deep_trace} />
+      ) : null}
 
       {analysis.business_impact ? (
         <BusinessImpactCard impact={analysis.business_impact} />

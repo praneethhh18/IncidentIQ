@@ -17,6 +17,7 @@ from app.models import AnalyzeRequest, AnalyzeResponse, SourceKind
 from app.prompts.root_cause import SYSTEM_PROMPT, build_user_prompt
 from app.services.agent import IncidentAgent
 from app.services.bedrock import BedrockClient, BedrockUnavailable
+from app.services.deep_trace import should_escalate as _should_escalate
 from app.services.demo_data import fallback_analysis
 from app.services.impact import build_business_impact, build_five_whys
 from app.services.integrations import IntegrationRegistry
@@ -116,6 +117,10 @@ class Analyzer:
         if result.five_whys is None:
             result.five_whys = build_five_whys(result)
 
+        should_escalate_flag, escalate_reason = _should_escalate(result)
+        result.should_escalate = should_escalate_flag
+        result.escalation_reason = escalate_reason
+
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         result.duration_ms = elapsed_ms
         result.source = request.source
@@ -164,6 +169,11 @@ class Analyzer:
             result.business_impact = build_business_impact(result)
         if result.five_whys is None:
             result.five_whys = build_five_whys(result)
+
+        # Phase 5 — recommend Deep Trace if the regular pass looks shaky.
+        should_escalate_flag, escalate_reason = _should_escalate(result)
+        result.should_escalate = should_escalate_flag
+        result.escalation_reason = escalate_reason
 
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         result.duration_ms = elapsed_ms

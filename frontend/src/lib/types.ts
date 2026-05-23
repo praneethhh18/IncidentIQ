@@ -70,6 +70,44 @@ export interface BusinessImpact {
   user_segments: string[];
 }
 
+export interface HiddenSignal {
+  category:
+    | "silent_failure"
+    | "timing_anomaly"
+    | "order_anomaly"
+    | "service_silence"
+    | "hidden_dependency"
+    | string;
+  title: string;
+  detail: string;
+  evidence: string[];
+  severity: Severity | null;
+}
+
+export interface ServiceProbe {
+  service: string;
+  role: string;
+  line_count: number;
+  first_seen: string | null;
+  last_seen: string | null;
+  went_silent: boolean;
+  error_burst_rate: number;
+  findings: string[];
+  suspected_role_in_cascade: "primary" | "propagator" | "bystander" | "sink" | string;
+}
+
+export interface DeepTraceReport {
+  triggered_reason: string;
+  auto_triggered: boolean;
+  extended_model_used: string;
+  duration_ms: number;
+  hidden_signals: HiddenSignal[];
+  service_probes: ServiceProbe[];
+  expert_insights: string[];
+  revised_root_cause: string;
+  revised_confidence: number;
+}
+
 export interface WhyStep {
   n: number;
   question: string;
@@ -102,6 +140,9 @@ export interface AnalyzeResponse {
   forensic: ForensicReport | null;
   business_impact: BusinessImpact | null;
   five_whys: FiveWhys | null;
+  deep_trace: DeepTraceReport | null;
+  should_escalate: boolean;
+  escalation_reason: string;
 }
 
 export interface IncidentSummary {

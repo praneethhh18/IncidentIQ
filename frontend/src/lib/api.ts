@@ -81,6 +81,12 @@ export const api = {
   exportPdfUrl: (id: string) =>
     `${API_BASE}/api/v1/incidents/${id}/export.pdf`,
 
+  deepTrace: (incidentId: string, logs?: string, reason?: string) =>
+    request<AnalyzeResponse>(`/api/v1/incidents/${incidentId}/deep-trace`, {
+      method: "POST",
+      json: { logs, reason },
+    }),
+
   /**
    * Stream an analysis using SSE-over-fetch. Yields events as they arrive:
    *   { type: "phase", phase, message }

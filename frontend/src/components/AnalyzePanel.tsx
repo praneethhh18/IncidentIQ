@@ -333,7 +333,11 @@ export function AnalyzePanel({
           />
         ) : null}
         {!loading && result ? (
-          <AnalysisResult analysis={result} showAgentTrail={false} />
+          <AnalysisResult
+            analysis={result}
+            showAgentTrail={false}
+            rawLogs={logs}
+          />
         ) : null}
       </div>
     </div>

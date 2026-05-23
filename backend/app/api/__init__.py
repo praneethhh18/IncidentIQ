@@ -2,10 +2,19 @@
 
 from fastapi import APIRouter
 
-from app.api import analyze, export, incidents, integrations, samples, webhooks
+from app.api import (
+    analyze,
+    deep_trace,
+    export,
+    incidents,
+    integrations,
+    samples,
+    webhooks,
+)
 
 router = APIRouter()
 router.include_router(analyze.router, prefix="/api/v1", tags=["analyze"])
+router.include_router(deep_trace.router, prefix="/api/v1", tags=["deep-trace"])
 router.include_router(export.router, prefix="/api/v1", tags=["export"])
 router.include_router(incidents.router, prefix="/api/v1", tags=["incidents"])
 router.include_router(integrations.router, prefix="/api/v1", tags=["integrations"])

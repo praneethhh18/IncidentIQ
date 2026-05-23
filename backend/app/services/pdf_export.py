@@ -241,6 +241,63 @@ def render_pdf(analysis: AnalyzeResponse) -> bytes:
                 )
             )
 
+    if analysis.deep_trace:
+        dt = analysis.deep_trace
+        story.append(Paragraph("Deep Trace — Emergency Investigator", styles["h2"]))
+        story.append(
+            Paragraph(
+                f"<b>{'Auto-escalated' if dt.auto_triggered else 'Manually invoked'} · "
+                f"Model:</b> {_escape(dt.extended_model_used or 'heuristic-only')} · "
+                f"<b>Duration:</b> {dt.duration_ms / 1000:.1f}s",
+                styles["muted"],
+            )
+        )
+        story.append(
+            Paragraph(f"<b>Trigger reason:</b> {_escape(dt.triggered_reason)}", styles["body"])
+        )
+
+        if dt.revised_root_cause or dt.revised_confidence > 0:
+            pct = int(dt.revised_confidence * 100)
+            story.append(
+                Paragraph(
+                    f"<b>Revised verdict</b> (confidence {pct}%): "
+                    + _escape(dt.revised_root_cause or "Original root cause verified."),
+                    styles["body"],
+                )
+            )
+
+        if dt.hidden_signals:
+            story.append(Paragraph("<b>Hidden bugs detected:</b>", styles["body"]))
+            for signal in dt.hidden_signals:
+                sev = signal.severity.value if signal.severity else "—"
+                story.append(
+                    Paragraph(
+                        f"&bull; [{_escape(signal.category)}] <b>{_escape(signal.title)}</b> ({sev}) — "
+                        + _escape(signal.detail),
+                        styles["muted"],
+                    )
+                )
+
+        if dt.service_probes:
+            story.append(Paragraph("<b>Per-service deep probe:</b>", styles["body"]))
+            for probe in dt.service_probes:
+                story.append(
+                    Paragraph(
+                        f"&bull; <b>{_escape(probe.service)}</b> "
+                        f"({_escape(probe.suspected_role_in_cascade)}) — "
+                        f"lines={probe.line_count}, burst={probe.error_burst_rate}/m, "
+                        f"silent={probe.went_silent}",
+                        styles["muted"],
+                    )
+                )
+                for finding in probe.findings:
+                    story.append(Paragraph(f"&nbsp;&nbsp;&nbsp;&nbsp;- {_escape(finding)}", styles["muted"]))
+
+        if dt.expert_insights:
+            story.append(Paragraph("<b>Expert insights:</b>", styles["body"]))
+            for i, insight in enumerate(dt.expert_insights, 1):
+                story.append(Paragraph(f"{i}. {_escape(insight)}", styles["muted"]))
+
     if analysis.five_whys and analysis.five_whys.steps:
         story.append(Paragraph("The 5 Whys", styles["h2"]))
         for step in analysis.five_whys.steps:

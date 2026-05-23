@@ -88,6 +88,65 @@ class BusinessImpact(BaseModel):
     )
 
 
+class HiddenSignal(BaseModel):
+    """A subtle pattern surfaced by Deep Trace that the regular pass missed.
+
+    Examples: silent failures (200 OK followed by ERROR), regular-interval
+    cron-like patterns, events arriving out of expected order, services
+    that suddenly go silent mid-incident.
+    """
+
+    category: str = Field(..., description="silent_failure | timing_anomaly | order_anomaly | service_silence | hidden_dependency")
+    title: str = Field(..., description="Short label for the signal")
+    detail: str = Field(..., description="One-paragraph explanation of what was found")
+    evidence: List[str] = Field(default_factory=list, description="Raw log lines supporting the signal")
+    severity: "Severity" = Field(default=None)
+
+
+class ServiceProbe(BaseModel):
+    """Result of a focused investigation into a single affected service."""
+
+    service: str
+    role: str
+    line_count: int = Field(..., description="Number of log lines mentioning this service")
+    first_seen: str | None = None
+    last_seen: str | None = None
+    went_silent: bool = Field(False, description="True if service appeared early then stopped logging.")
+    error_burst_rate: float = Field(0.0, description="ERROR/FATAL lines per minute for this service.")
+    findings: List[str] = Field(default_factory=list, description="Plain-language observations.")
+    suspected_role_in_cascade: str = Field(
+        ..., description="primary | propagator | bystander | sink"
+    )
+
+
+class DeepTraceReport(BaseModel):
+    """Output of Deep Trace mode — the emergency escalation.
+
+    Surfaces what the surface-level analysis missed: hidden bugs,
+    per-service deep probes, and (when Bedrock is live) an extended
+    model pass focused on subtle defects.
+    """
+
+    triggered_reason: str = Field(..., description="Why Deep Trace was activated.")
+    auto_triggered: bool = Field(..., description="True if the system escalated automatically.")
+    extended_model_used: str = Field("", description="Model id used for the extended pass, or empty.")
+    duration_ms: int = Field(0)
+    hidden_signals: List[HiddenSignal] = Field(default_factory=list)
+    service_probes: List[ServiceProbe] = Field(default_factory=list)
+    expert_insights: List[str] = Field(
+        default_factory=list,
+        description="Subtle defects only an expert would catch — LLM expert pass output.",
+    )
+    revised_root_cause: str = Field(
+        "",
+        description="If the deep pass changed the root cause, this is the revised statement.",
+    )
+    revised_confidence: float = Field(
+        0.0, ge=0.0, le=1.0,
+        description="Post-deep-trace confidence (often higher than the regular pass).",
+    )
+
+
 class WhyStep(BaseModel):
     """One step in the 5 Whys postmortem ladder."""
 
@@ -223,6 +282,21 @@ class AnalyzeResponse(BaseModel):
     five_whys: FiveWhys | None = Field(
         default=None,
         description="Classic 5-Whys postmortem ladder with optional counter-factual.",
+    )
+    deep_trace: DeepTraceReport | None = Field(
+        default=None,
+        description=(
+            "Deep Trace emergency-investigator output. Present only when the "
+            "regular pass triggered escalation or the user manually invoked it."
+        ),
+    )
+    should_escalate: bool = Field(
+        default=False,
+        description="True when the system recommends running Deep Trace on this analysis.",
+    )
+    escalation_reason: str = Field(
+        default="",
+        description="Human-readable explanation of why Deep Trace is recommended.",
     )
 
 

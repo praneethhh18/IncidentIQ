@@ -116,6 +116,18 @@ IncidentIQ is structured as a four-phase agent, not a single LLM call:
 
 The full reasoning trail **streams live** via Server-Sent Events — judges watch the agent think step-by-step. See [ARCHITECTURE.md](ARCHITECTURE.md) and [HACKATHON.md](HACKATHON.md) for the deep dive.
 
+## Deep Trace — the emergency investigator
+
+Most incidents resolve with the regular 10-second pass. The hard ones get escalated to **Deep Trace** — a second-tier investigator that activates automatically when:
+
+- Confidence falls below 50%
+- The agent's self-check finds weak grounding
+- Patient zero can't be located
+- The trigger hypothesis is "unknown"
+- A P1 incident has no matching history
+
+Deep Trace runs four **hidden-signal scanners** (silent failures, timing anomalies, order anomalies, service silence), then a **per-service deep probe** that classifies each service as `primary` / `propagator` / `bystander` / `sink`, then makes an **extended Nova Pro pass** asking specifically for hidden bugs an expert SRE would catch. The user can also invoke it manually on any analysis.
+
 ## Forensic mode — the differentiator
 
 Inspired by malware-forensic tools, IncidentIQ doesn't just diagnose — it **reverse engineers** the cascade:
@@ -141,6 +153,7 @@ Set `SLACK_WEBHOOK_URL` in `backend/.env` to auto-post analysis cards to your ch
 
 | Feature | Description |
 | --- | --- |
+| **🚨 Deep Trace** | Emergency-investigator second pass: hidden-signal scanners + per-service deep probe + extended Nova Pro reasoning. Auto-escalates on low confidence / P1 / weak grounding |
 | **🔬 Forensic mode** | Patient zero, propagation path, blast radius, trigger hypothesis — reverse-engineer the cascade |
 | **⚡ Live streaming reasoning** | Watch the agent think live via SSE — every thought, tool call, and observation streams to the UI |
 | **🪝 Webhook auto-ingest** | PagerDuty / Datadog / Opsgenie / generic alerts auto-analyzed; results posted to Slack |
