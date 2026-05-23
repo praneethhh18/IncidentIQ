@@ -40,53 +40,78 @@ body {
   background-color: #09090B;
 }
 
+/* Two violet plumes that drift across the screen on different long loops.
+   Heavy blur turns them into clouds that flow rather than solid shapes.
+   They overlap on the way past each other, creating natural intensity
+   shifts without a fixed "where the glow lives". */
 .aurora-blob {
   position: absolute;
-  inset: -10% -10% auto -10%;
+  width: 95vw;
   height: 95vh;
-  filter: blur(30px);
+  border-radius: 9999px;
+  filter: blur(70px);
   will-change: transform;
   background: radial-gradient(
-    ellipse 80% 75% at 50% 25%,
-    rgba(167, 139, 250, 0.95) 0%,
-    rgba(139, 92, 246, 0.82) 12%,
-    rgba(124, 58, 237, 0.65) 24%,
-    rgba(91, 33, 182, 0.42) 38%,
-    rgba(59, 7, 100, 0.20) 55%,
-    transparent 75%
+    circle at center,
+    rgba(167, 139, 250, 0.85) 0%,
+    rgba(139, 92, 246, 0.62) 18%,
+    rgba(124, 58, 237, 0.38) 35%,
+    rgba(91, 33, 182, 0.16) 55%,
+    transparent 72%
   );
-  animation: aurora-drift 30s ease-in-out infinite;
 }
 
-/* Hard fade to pure black for the bottom half of the viewport so the
-   glow stays anchored to the top. */
+.aurora-blob-1 {
+  top: -45%;
+  left: -25%;
+  animation: aurora-flow-1 26s ease-in-out infinite;
+}
+
+.aurora-blob-2 {
+  top: -55%;
+  left: 30%;
+  animation: aurora-flow-2 32s ease-in-out infinite;
+  opacity: 0.85;
+}
+
+/* Hard fade to pure black for the lower viewport so the glow stays in
+   the upper half no matter where the plumes drift. */
 .aurora-fade {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    transparent 40%,
-    rgba(9, 9, 11, 0.70) 60%,
-    #09090B 80%
+    transparent 35%,
+    rgba(9, 9, 11, 0.70) 58%,
+    #09090B 78%
   );
 }
 
-/* Film grain. SVG noise turbulence on top of the glow. Mid opacity +
-   overlay blend gives the gradient a printed/material feel and kills
-   banding. */
+/* Film grain. SVG noise sampled at a finer baseFrequency so the grain
+   pattern is dense and visible like the reference. Higher opacity +
+   overlay blend = dithered/printed feel. */
 .aurora-grain {
   position: absolute;
   inset: 0;
-  opacity: 0.45;
+  opacity: 0.65;
   mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size: 240px 240px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.75 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 320px 320px;
 }
 
-@keyframes aurora-drift {
-  0%, 100% { transform: translate3d(-2vw, 0, 0); }
-  50%      { transform: translate3d(2vw, 1vh, 0); }
+@keyframes aurora-flow-1 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  33%  { transform: translate3d(40vw, 8vh, 0) scale(1.05); }
+  66%  { transform: translate3d(15vw, 18vh, 0) scale(0.95); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes aurora-flow-2 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  33%  { transform: translate3d(-30vw, 12vh, 0) scale(0.95); }
+  66%  { transform: translate3d(-50vw, -4vh, 0) scale(1.08); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
 }
 
 /* Make all stat-like numbers render with proportional spacing */
