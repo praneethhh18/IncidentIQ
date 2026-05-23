@@ -34,10 +34,13 @@ import { SeverityBadge } from "./SeverityBadge";
 export function AnalysisResult({
   analysis: initial,
   showAgentTrail = true,
+  showOpenDetail = true,
   rawLogs,
 }: {
   analysis: AnalyzeResponse;
   showAgentTrail?: boolean;
+  /** Hide the "Open detail" link in the header (e.g. when already on the detail page). */
+  showOpenDetail?: boolean;
   rawLogs?: string;
 }) {
   const [analysis, setAnalysis] = useState<AnalyzeResponse>(initial);
@@ -111,12 +114,14 @@ export function AnalysisResult({
             >
               <FileDown className="size-3.5" /> Export PDF
             </a>
-            <Link
-              href={`/incidents/${analysis.incident_id}`}
-              className="btn-ghost px-3 py-1.5 text-[12.5px]"
-            >
-              Open detail <ArrowUpRight className="size-3.5" />
-            </Link>
+            {showOpenDetail ? (
+              <Link
+                href={`/incidents/${analysis.incident_id}`}
+                className="btn-ghost px-3 py-1.5 text-[12.5px]"
+              >
+                Open detail <ArrowUpRight className="size-3.5" />
+              </Link>
+            ) : null}
           </div>
         </div>
 
