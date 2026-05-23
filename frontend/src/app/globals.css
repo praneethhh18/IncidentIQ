@@ -21,14 +21,9 @@ body {
 }
 
 /* ─── Aurora background ────────────────────────────────────────────────────
-   Strong top glow that fades to pure black. A single dome at the top with
-   a refined desaturated violet, fading hard to black around 55% of viewport
-   height. Drifts side-to-side on a 30s loop. A subtle SVG grain layer sits
-   on top to break up the gradient banding (the bit that makes it feel
-   filmic rather than purely digital).
-
-   Color choice: a muted dusty violet (closer to aubergine than electric
-   indigo) so it reads as a deliberate accent, not the default AI-app cliche.
+   A WebGL shader (SpectraNoise) renders a flowing organic colour field at
+   the top of the page. A linear fade below it pushes the lower viewport
+   to pure black so foreground content stays readable.
 */
 .aurora-layer {
   position: fixed;
@@ -40,42 +35,18 @@ body {
   background-color: #09090B;
 }
 
-/* Two violet plumes that drift across the screen on different long loops.
-   Heavy blur turns them into clouds that flow rather than solid shapes.
-   They overlap on the way past each other, creating natural intensity
-   shifts without a fixed "where the glow lives". */
-.aurora-blob {
+/* Canvas wrapper: limit the shader to roughly the upper 70vh of the
+   viewport so the bottom isn't covered. The canvas itself is sized 100%
+   inside this box. */
+.aurora-canvas-wrap {
   position: absolute;
-  width: 95vw;
-  height: 95vh;
-  border-radius: 9999px;
-  filter: blur(70px);
-  will-change: transform;
-  background: radial-gradient(
-    circle at center,
-    rgba(167, 139, 250, 0.85) 0%,
-    rgba(139, 92, 246, 0.62) 18%,
-    rgba(124, 58, 237, 0.38) 35%,
-    rgba(91, 33, 182, 0.16) 55%,
-    transparent 72%
-  );
+  inset: 0 0 auto 0;
+  height: 75vh;
 }
 
-.aurora-blob-1 {
-  top: -45%;
-  left: -25%;
-  animation: aurora-flow-1 26s ease-in-out infinite;
-}
-
-.aurora-blob-2 {
-  top: -55%;
-  left: 30%;
-  animation: aurora-flow-2 32s ease-in-out infinite;
-  opacity: 0.85;
-}
-
-/* Hard fade to pure black for the lower viewport so the glow stays in
-   the upper half no matter where the plumes drift. */
+/* Linear fade. Sits over the entire viewport and gradually opaques to
+   the page background, killing the shader's bottom edge and keeping the
+   lower half of any page reliably dark. */
 .aurora-fade {
   position: absolute;
   inset: 0;
@@ -83,35 +54,9 @@ body {
     to bottom,
     transparent 0%,
     transparent 35%,
-    rgba(9, 9, 11, 0.70) 58%,
+    rgba(9, 9, 11, 0.65) 55%,
     #09090B 78%
   );
-}
-
-/* Film grain. SVG noise sampled at a finer baseFrequency so the grain
-   pattern is dense and visible like the reference. Higher opacity +
-   overlay blend = dithered/printed feel. */
-.aurora-grain {
-  position: absolute;
-  inset: 0;
-  opacity: 0.65;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.75 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size: 320px 320px;
-}
-
-@keyframes aurora-flow-1 {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  33%  { transform: translate3d(40vw, 8vh, 0) scale(1.05); }
-  66%  { transform: translate3d(15vw, 18vh, 0) scale(0.95); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
-}
-
-@keyframes aurora-flow-2 {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  33%  { transform: translate3d(-30vw, 12vh, 0) scale(0.95); }
-  66%  { transform: translate3d(-50vw, -4vh, 0) scale(1.08); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
 }
 
 /* Make all stat-like numbers render with proportional spacing */

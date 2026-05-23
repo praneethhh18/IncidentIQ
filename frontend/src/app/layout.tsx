@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Github } from "lucide-react";
 
+import { SpectraNoise } from "@/components/SpectraNoise";
+
 export const metadata: Metadata = {
   title: "IncidentIQ. AI Incident Root Cause Analyzer.",
   description:
@@ -31,10 +33,18 @@ export default function RootLayout({
 function BackgroundAurora() {
   return (
     <div className="aurora-layer" aria-hidden>
-      <div className="aurora-blob aurora-blob-1" />
-      <div className="aurora-blob aurora-blob-2" />
+      <div className="aurora-canvas-wrap">
+        <SpectraNoise
+          hueShift={-30}
+          noiseIntensity={0.06}
+          scanlineIntensity={0}
+          scanlineFrequency={0}
+          warpAmount={0.35}
+          speed={0.25}
+          resolutionScale={0.6}
+        />
+      </div>
       <div className="aurora-fade" />
-      <div className="aurora-grain" />
     </div>
   );
 }
