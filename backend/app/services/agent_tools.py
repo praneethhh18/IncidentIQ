@@ -113,7 +113,7 @@ def service_dependency_hints(services: List[str]) -> Dict[str, Any]:
 
 
 def trace_origin(logs: str) -> Dict[str, Any]:
-    """FORENSIC TOOL: find patient zero — the earliest abnormal signal.
+    """FORENSIC TOOL: find patient zero - the earliest abnormal signal.
 
     Walks the log timeline in order, returns the first WARN/ERROR/FATAL
     event together with the gap to the first ERROR/FATAL (time-to-impact).
@@ -281,7 +281,7 @@ def infer_trigger(log_entities: Dict[str, Any], logs: str) -> Dict[str, Any]:
 
     if not candidates:
         return {
-            "trigger": "Unknown — telemetry doesn't include a clear precipitating event",
+            "trigger": "Unknown - telemetry doesn't include a clear precipitating event",
             "evidence": "No deploy / config / scaling / dependency signals found.",
             "confidence": 0.30,
         }
@@ -317,7 +317,7 @@ def query_similar_incidents(signature: str, limit: int = 3) -> Dict[str, Any]:
     return {"matches": hits[:limit]}
 
 
-# Tool registry — keeps the public surface explicit.
+# Tool registry - keeps the public surface explicit.
 TOOLS = {
     "extract_entities": extract_entities,
     "search_logs": search_logs,
@@ -353,7 +353,7 @@ TOOL_CATALOG = [
     },
     {
         "name": "trace_origin",
-        "purpose": "Forensic: find patient zero — the earliest abnormal signal that started the cascade.",
+        "purpose": "Forensic: find patient zero - the earliest abnormal signal that started the cascade.",
     },
     {
         "name": "compute_blast_radius",

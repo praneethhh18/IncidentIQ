@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Activity, Github, Sparkles } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "IncidentIQ — AI Incident Root Cause Analyzer",
+  title: "IncidentIQ. AI Incident Root Cause Analyzer.",
   description:
-    "Connect Datadog, Grafana, and New Relic. IncidentIQ uses AWS Bedrock to identify the root cause, rebuild the timeline, and recommend fixes in seconds.",
+    "Connect Datadog, Grafana, and New Relic. IncidentIQ identifies the root cause, rebuilds the timeline, and recommends fixes in seconds.",
   metadataBase: new URL("http://localhost:3000"),
 };
 
@@ -70,13 +70,11 @@ function NavBar() {
 
 function Footer() {
   return (
-    <footer className="border-t border-white/[0.06] text-ink-500 text-xs">
+    <footer className="border-t border-white/[0.05] text-ink-500 text-xs">
       <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
-        <div>
-          IncidentIQ · Built for SRE teams who don&apos;t sleep on bad pagers.
-        </div>
+        <div>IncidentIQ. Built for on-call.</div>
         <a
-          href="https://github.com"
+          href="https://github.com/praneethhh18/IncidentIQ-AI-Incident-Root-Cause-Analyzer"
           className="flex items-center gap-1.5 hover:text-ink-300 transition"
           target="_blank"
           rel="noreferrer"

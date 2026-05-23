@@ -1,4 +1,4 @@
-"""IncidentIQ agent — the actually-agentic part.
+"""IncidentIQ agent - the actually-agentic part.
 
 Where ``Analyzer`` is a thin LLM wrapper, ``IncidentAgent`` is the
 think → act → observe → decide loop that turns IncidentIQ into a real
@@ -16,7 +16,7 @@ The agent's job each run:
   5. **Synthesise** by handing the enriched context to the LLM for the
      final structured root-cause analysis (or, when Bedrock is offline,
      pick a hand-crafted fallback).
-  6. **Self-check** — verify the LLM output names at least one service
+  6. **Self-check** - verify the LLM output names at least one service
      we actually observed; if not, lower confidence in the audit trail.
 
 The full trace is returned to the caller as ``agent_steps`` so the UI can
@@ -124,7 +124,7 @@ class IncidentAgent:
         )
         ctx["service_roles"] = roles
 
-        # 5. Hypothesis test — grep for the strongest signal
+        # 5. Hypothesis test - grep for the strongest signal
         keywords = _pick_signal_keywords(entities)
         ctx["signal_keywords"] = keywords
         if keywords:
@@ -272,7 +272,7 @@ class IncidentAgent:
                     kind="thought",
                     title="Self-check passed",
                     detail=(
-                        "Analysis is grounded — every affected service it names "
+                        "Analysis is grounded - every affected service it names "
                         "appears in the raw telemetry I inventoried."
                     ),
                 )
@@ -328,18 +328,18 @@ class IncidentAgent:
         if not origin:
             return None
 
-        # Patient zero — promote the earliest observed event to a TimelineEvent.
+        # Patient zero - promote the earliest observed event to a TimelineEvent.
         try:
             patient_zero = TimelineEvent(
                 timestamp=origin["timestamp"],
-                label="Patient zero — first abnormal signal",
+                label="Patient zero - first abnormal signal",
                 detail=origin["text"],
                 severity=_severity_for_level(origin.get("level", "WARN")),
             )
         except Exception:  # noqa: BLE001
             return None
 
-        # Propagation path — derive from the chronological timeline.
+        # Propagation path - derive from the chronological timeline.
         timeline = analysis.timeline or []
         propagation_path: List[str] = []
         seen: set[str] = set()
@@ -354,7 +354,7 @@ class IncidentAgent:
         if not propagation_path:
             propagation_path = [s.name for s in analysis.affected_services][:6]
 
-        # Blast radius — from the compute_blast_radius tool output.
+        # Blast radius - from the compute_blast_radius tool output.
         raw_blast = (context.get("blast_radius") or {}).get("entities", [])
         blast_radius: List[BlastRadiusEntity] = []
         for entry in raw_blast:
@@ -370,7 +370,7 @@ class IncidentAgent:
             except Exception:  # noqa: BLE001
                 continue
 
-        # Trigger hypothesis — from infer_trigger.
+        # Trigger hypothesis - from infer_trigger.
         trigger = context.get("trigger") or {}
         trigger_text = trigger.get("trigger", "Unknown trigger")
         trigger_evidence = trigger.get("evidence", "")

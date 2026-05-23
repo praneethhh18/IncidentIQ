@@ -1,7 +1,7 @@
 """Derive Business Impact and 5 Whys postmortem from an analysis.
 
 These two views are computed locally from the structured analysis the
-LLM already produced. We don't make another LLM call for them — instead
+LLM already produced. We don't make another LLM call for them - instead
 we use heuristics keyed on severity, affected-service roles, and the
 forensic report. This keeps latency flat and ensures the views are
 present even when running on demo fallback.
@@ -64,7 +64,7 @@ def build_business_impact(analysis: AnalyzeResponse) -> BusinessImpact:
     sla_detail = (
         "99.9% availability SLA likely breached for the duration of the cascade."
         if sla_breached
-        else "Within SLA threshold — no customer credits due."
+        else "Within SLA threshold - no customer credits due."
     )
 
     user_segments = _infer_user_segments(analysis)
@@ -146,7 +146,7 @@ def build_five_whys(analysis: AnalyzeResponse) -> FiveWhys:
     steps: List[WhyStep] = [
         WhyStep(
             n=1,
-            question=f"Why did the user-visible symptom happen? — {symptom}",
+            question=f"Why did the user-visible symptom happen? - {symptom}",
             answer=f"Because {_lower_first(root_cause)}.",
         ),
         WhyStep(
@@ -199,8 +199,8 @@ def _layer_four_answer(analysis: AnalyzeResponse) -> str:
     if analysis.fixes:
         top_fix = sorted(analysis.fixes, key=lambda f: f.priority)[0]
         return (
-            f"Because the safeguard described by the top remediation — "
-            f"'{top_fix.title.lower()}' — was not in place or not enforced. "
+            f"Because the safeguard described by the top remediation - "
+            f"'{top_fix.title.lower()}' - was not in place or not enforced. "
             "The fix exists as a known practice but hadn't been adopted on this path."
         )
     return (
@@ -214,14 +214,14 @@ def _layer_five_answer(analysis: AnalyzeResponse) -> str:
     if sev == Severity.P1:
         return (
             "Because the platform's reliability budget for this critical path is "
-            "treated as 'best-effort' rather than 'must not break' — meaning "
+            "treated as 'best-effort' rather than 'must not break' - meaning "
             "individual teams ship without an enforced quality gate, and the "
             "absence of guardrails accumulates silently until one cascade exposes it."
         )
     if sev == Severity.P2:
         return (
             "Because non-critical paths inherit the same shared infrastructure as "
-            "critical ones but without the same defensive posture — when load or "
+            "critical ones but without the same defensive posture - when load or "
             "leaks cross a quiet threshold, the non-critical path is the first to give."
         )
     return (
@@ -237,7 +237,7 @@ def _counter_factual(analysis: AnalyzeResponse) -> str:
     return (
         f"If '{top_fix.title}' had already been in place, "
         "patient zero would either not have occurred or would have been auto-mitigated "
-        "before any user-visible symptom — turning this from a P1 into a tracked warning."
+        "before any user-visible symptom - turning this from a P1 into a tracked warning."
     )
 
 

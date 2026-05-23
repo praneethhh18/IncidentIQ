@@ -1,20 +1,20 @@
-"""Deep Trace — the emergency investigator that activates when the regular
+"""Deep Trace - the emergency investigator that activates when the regular
 pass isn't confident or hits trouble.
 
 Three layers of investigation that the surface-level agent skips:
 
-  1. **Hidden-signal scanners** — pattern detectors for things only an
+  1. **Hidden-signal scanners** - pattern detectors for things only an
      expert SRE would normally catch:
        * silent failures (2xx followed by ERROR within seconds)
        * timing anomalies (regular-interval patterns that hint at cron / GC / scheduled jobs)
-       * order anomalies (events arriving in unexpected order — race conditions)
-       * service silence (services that appear early then go quiet — often the culprit)
+       * order anomalies (events arriving in unexpected order - race conditions)
+       * service silence (services that appear early then go quiet - often the culprit)
 
-  2. **Per-service deep probes** — for each affected service, focused
+  2. **Per-service deep probes** - for each affected service, focused
      statistics (error burst rate, first/last appearance, silence) plus
      a classification (primary / propagator / bystander / sink).
 
-  3. **Extended LLM pass** — when Bedrock is available, re-prompts Nova
+  3. **Extended LLM pass** - when Bedrock is available, re-prompts Nova
      Pro with the scanner findings asking specifically about *hidden
      bugs an expert would catch*. Larger token budget than the regular
      pass. Returns a curated list of insights.
@@ -50,7 +50,7 @@ def should_escalate(analysis: AnalyzeResponse) -> tuple[bool, str]:
     """Decide whether Deep Trace should auto-trigger after the regular pass.
 
     Returns (should_trigger, human-readable reason). Designed to fire only
-    on genuinely uncertain or high-stakes cases — most incidents resolve
+    on genuinely uncertain or high-stakes cases - most incidents resolve
     fine with the regular agent.
     """
     if analysis.confidence < 0.5:
@@ -60,12 +60,12 @@ def should_escalate(analysis: AnalyzeResponse) -> tuple[bool, str]:
         return True, "Agent could not assemble a forensic report (no patient zero located)."
 
     if analysis.forensic and "unknown" in analysis.forensic.trigger_hypothesis.lower():
-        return True, "Trigger hypothesis is 'unknown' — the regular pass cannot explain causality."
+        return True, "Trigger hypothesis is 'unknown' - the regular pass cannot explain causality."
 
     # Detect the agent's own self-check flag in the trail.
     for step in analysis.agent_steps:
         if "weak grounding" in step.title.lower():
-            return True, "Self-check flagged weak grounding — LLM named services not observed in logs."
+            return True, "Self-check flagged weak grounding - LLM named services not observed in logs."
 
     # P1 with no prior history is risky enough to deep-trace.
     if analysis.severity == Severity.P1 and not _has_similar_history(analysis):
@@ -125,7 +125,7 @@ def scan_silent_failures(logs: str) -> HiddenSignal | None:
 
 
 def scan_timing_anomalies(logs: str) -> HiddenSignal | None:
-    """Find evenly-spaced events — often scheduled jobs / GC / autoscaler cycles."""
+    """Find evenly-spaced events - often scheduled jobs / GC / autoscaler cycles."""
     timestamps: List[datetime] = []
     for line in logs.splitlines():
         match = ISO_TS_RE.search(line)
@@ -169,7 +169,7 @@ def scan_timing_anomalies(logs: str) -> HiddenSignal | None:
             detail=(
                 f"Log events arrive at a near-constant {median:.1f}s interval "
                 f"(σ/μ = {cv:.2f}). That's the fingerprint of a scheduled job, "
-                "garbage-collection cycle, or autoscaler kicking — and one of "
+                "garbage-collection cycle, or autoscaler kicking - and one of "
                 "those is probably the trigger you're missing."
             ),
             evidence=[
@@ -186,7 +186,7 @@ def scan_timing_anomalies(logs: str) -> HiddenSignal | None:
             title="Latency outlier in the event timeline",
             detail=(
                 f"One gap of {max(intervals):.1f}s sits inside an otherwise "
-                f"~{median:.1f}s cadence. That's a stall — either a single "
+                f"~{median:.1f}s cadence. That's a stall - either a single "
                 "slow operation (a long lock, a hung dependency, a flushed GC) "
                 "or telemetry going dark for a window."
             ),
@@ -232,7 +232,7 @@ def scan_order_anomalies(logs: str) -> HiddenSignal | None:
         detail=(
             "Some log lines arrive with timestamps earlier than the preceding "
             "line. This is either clock skew between hosts, asynchronous "
-            "buffering at the log shipper, or — most importantly — a race "
+            "buffering at the log shipper, or - most importantly - a race "
             "condition where parallel paths report results in non-deterministic order."
         ),
         evidence=out_of_order[:4],
@@ -272,7 +272,7 @@ def scan_service_silence(
         detail=(
             "Services appeared in the early portion of the logs and then "
             "stopped logging entirely. A silent service during an incident "
-            "is rarely innocent — it's either the one that crashed (no more "
+            "is rarely innocent - it's either the one that crashed (no more "
             "log lines to emit) or had its telemetry pipeline taken down by "
             "the cascade. Either way, prioritize investigating these."
         ),
@@ -336,13 +336,13 @@ def probe_services(
         findings: List[str] = []
         if went_silent:
             findings.append(
-                "Stopped logging in the final third of the incident — likely crashed or had its telemetry severed."
+                "Stopped logging in the final third of the incident - likely crashed or had its telemetry severed."
             )
         if errors == len(hits) and errors > 1:
-            findings.append("Every line for this service was an error or fatal — purely a victim or a crashing component.")
+            findings.append("Every line for this service was an error or fatal - purely a victim or a crashing component.")
         if burst_rate > 30:
             findings.append(
-                f"Error burst rate of ~{burst_rate:.0f}/min — extremely loud, almost certainly a propagator."
+                f"Error burst rate of ~{burst_rate:.0f}/min - extremely loud, almost certainly a propagator."
             )
 
         # Classification heuristic
@@ -366,7 +366,7 @@ def probe_services(
                 last_seen=last_ts.isoformat() if last_ts else None,
                 went_silent=went_silent,
                 error_burst_rate=round(burst_rate, 1),
-                findings=findings or ["Routine appearance — no anomalous pattern detected."],
+                findings=findings or ["Routine appearance - no anomalous pattern detected."],
                 suspected_role_in_cascade=role_in_cascade,
             )
         )
@@ -396,7 +396,7 @@ _EXPERT_SYSTEM_PROMPT = """\
 You are an elite SRE called in to do a deep forensic investigation on an
 incident that the first-pass agent could not fully explain. You have 20
 years of experience and have personally led postmortems on FAANG-scale
-outages. Your job is to find the HIDDEN BUGS — the subtle defects that
+outages. Your job is to find the HIDDEN BUGS - the subtle defects that
 only an expert would catch on a normal read-through.
 
 You are given:
@@ -407,14 +407,14 @@ You are given:
 Reply with a SINGLE JSON object:
 {
   "expert_insights": [
-    "string — one finding per element; a hidden bug, subtle interaction, or non-obvious cause"
+    "string - one finding per element; a hidden bug, subtle interaction, or non-obvious cause"
   ],
-  "revised_root_cause": "string — if the deep look changed the root cause, the corrected statement. Empty string if not.",
+  "revised_root_cause": "string - if the deep look changed the root cause, the corrected statement. Empty string if not.",
   "revised_confidence": 0.0
 }
 
 Rules:
-  • Each insight must be ACTIONABLE and SPECIFIC — no generic SRE advice.
+  • Each insight must be ACTIONABLE and SPECIFIC - no generic SRE advice.
   • Quote evidence where possible.
   • If the original root cause was already right, leave revised_root_cause empty and set revised_confidence higher (e.g., 0.88) to reflect the deep-trace verification.
   • Output JSON only, no markdown, no commentary.
@@ -437,7 +437,7 @@ def _build_expert_prompt(
     if hidden:
         parts.append("\nHidden-signal scanner findings:")
         for signal in hidden:
-            parts.append(f"  • [{signal.category}] {signal.title} — {signal.detail}")
+            parts.append(f"  • [{signal.category}] {signal.title} - {signal.detail}")
 
     if probes:
         parts.append("\nPer-service probe results:")
@@ -490,7 +490,7 @@ def run_deep_trace(
     # 2. Per-service probes
     probes = probe_services(logs, affected_services)
 
-    # 3. Extended LLM pass (optional — Bedrock only)
+    # 3. Extended LLM pass (optional - Bedrock only)
     expert_insights: List[str] = []
     revised_root_cause = ""
     revised_confidence = 0.0
@@ -541,7 +541,7 @@ def _fallback_expert_insights(
     for probe in probes:
         if probe.suspected_role_in_cascade == "primary":
             insights.append(
-                f"Service '{probe.service}' looks like the cascade's primary — "
+                f"Service '{probe.service}' looks like the cascade's primary - "
                 "it went silent during the incident, meaning the process likely "
                 "crashed and stopped producing log output entirely. Start your "
                 "investigation here, not at the loudest service."
@@ -549,7 +549,7 @@ def _fallback_expert_insights(
     if not insights:
         insights.append(
             "Deep Trace ran every scanner and found no hidden anomalies. The "
-            "first-pass analysis appears complete — the incident is exactly as "
+            "first-pass analysis appears complete - the incident is exactly as "
             "the regular agent described it."
         )
     return insights

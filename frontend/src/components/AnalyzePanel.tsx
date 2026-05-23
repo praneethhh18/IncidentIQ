@@ -198,7 +198,7 @@ export function AnalyzePanel({
                     Drop a log file or click to choose
                   </div>
                   <div className="text-[11.5px] text-ink-500 mt-1">
-                    .log · .txt · .json — up to 5MB
+                    .log, .txt, .json, up to 5MB
                   </div>
                   {filename ? (
                     <div className="mt-3 chip">
@@ -227,7 +227,7 @@ export function AnalyzePanel({
                   rows={tab === "upload" ? 6 : 10}
                   placeholder={
                     tab === "upload"
-                      ? "Drop a file above — its contents will appear here."
+                      ? "Drop a file above. Its contents will appear here."
                       : "Paste the relevant log output. Mixed structured/unstructured is fine."
                   }
                   value={logs}

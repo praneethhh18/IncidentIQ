@@ -6,33 +6,41 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Neutral zinc palette. "ink" is intentionally close to true black,
+        // not blue-tinted slate, so the product reads as a console tool, not
+        // an AI-app cliche.
         ink: {
-          50: "#F8FAFC",
-          100: "#F1F5F9",
-          200: "#E2E8F0",
-          300: "#CBD5E1",
-          400: "#94A3B8",
-          500: "#64748B",
-          600: "#475569",
-          700: "#334155",
-          800: "#1E293B",
-          900: "#0F172A",
-          950: "#020617",
+          50: "#FAFAFA",
+          100: "#F4F4F5",
+          200: "#E4E4E7",
+          300: "#D4D4D8",
+          400: "#A1A1AA",
+          500: "#71717A",
+          600: "#52525B",
+          700: "#3F3F46",
+          800: "#27272A",
+          900: "#18181B",
+          950: "#09090B",
         },
+        // "brand" used to be indigo. Now it's just an off-white scale so any
+        // existing `bg-brand-500` etc. resolves to a neutral accent. New code
+        // should prefer pure white or ink-* tokens directly.
         brand: {
-          50: "#EEF2FF",
-          100: "#E0E7FF",
-          200: "#C7D2FE",
-          300: "#A5B4FC",
-          400: "#818CF8",
-          500: "#6366F1",
-          600: "#4F46E5",
-          700: "#4338CA",
+          50: "#FFFFFF",
+          100: "#FAFAFA",
+          200: "#F4F4F5",
+          300: "#E4E4E7",
+          400: "#D4D4D8",
+          500: "#FAFAFA",
+          600: "#E4E4E7",
+          700: "#D4D4D8",
         },
+        // Severity is the ONLY semantic color usage. Slightly desaturated
+        // from the prior values so they sit better on the new neutral bg.
         sev: {
-          p1: "#EF4444",
+          p1: "#F43F5E",
           p2: "#F59E0B",
-          p3: "#10B981",
+          p3: "#22C55E",
         },
       },
       fontFamily: {

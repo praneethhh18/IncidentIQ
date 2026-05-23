@@ -8,19 +8,16 @@ import {
   Clock,
   FileDown,
   GitBranch,
-  Layers,
   Microscope,
   ShieldCheck,
-  Sparkles,
   Workflow,
 } from "lucide-react";
 
-import { EASE, transitions } from "@/lib/motion";
+import { EASE } from "@/lib/motion";
 import {
   FadeIn,
   FadeItem,
   HoverCard,
-  PulseDot,
   StaggerList,
 } from "@/components/motion-primitives";
 
@@ -48,23 +45,13 @@ function Hero() {
       />
 
       <div className="relative mx-auto max-w-7xl px-6 pt-20 pb-24 text-center">
-        <FadeIn>
-          <div className="inline-flex items-center gap-2 chip mb-6 text-brand-300">
-            <PulseDot className="text-brand-400" />
-            Powered by AWS Bedrock · Amazon Nova Pro
-          </div>
-        </FadeIn>
-
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: EASE, delay: 0.08 }}
           className="text-5xl md:text-6xl font-semibold tracking-tight text-ink-50 leading-[1.05]"
         >
-          Find the{" "}
-          <span className="bg-gradient-to-r from-brand-300 via-brand-200 to-white bg-clip-text text-transparent">
-            root cause
-          </span>
+          Find the root cause
           <br />
           before the page bounces.
         </motion.h1>
@@ -73,29 +60,29 @@ function Hero() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.18 }}
-          className="mt-6 max-w-2xl mx-auto text-ink-300 text-lg leading-relaxed"
+          className="mt-6 max-w-2xl mx-auto text-ink-400 text-lg leading-relaxed"
         >
-          IncidentIQ plugs into Datadog, Grafana, and New Relic, reads your logs in real time, and produces the root cause, timeline, affected services, severity, and a ranked fix list — in under 10 seconds.
+          IncidentIQ reads your logs, traces the cascade back to patient zero, and writes the post mortem before your second coffee. Under 10 seconds.
         </motion.p>
 
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.28 }}
-          className="mt-9 flex items-center justify-center gap-3"
+          className="mt-10 flex items-center justify-center gap-2"
         >
-          <Link href="/dashboard" className="btn-primary px-5 py-2.5 text-[15px] group">
-            <Sparkles className="size-4 transition group-hover:rotate-12" /> Try it now
+          <Link href="/dashboard" className="btn-primary px-5 py-2.5 text-[14px] group">
+            Analyze an incident
             <ArrowRight className="size-4 transition group-hover:translate-x-0.5" />
           </Link>
-          <Link href="/incidents" className="btn-secondary px-5 py-2.5 text-[15px]">
-            View incidents
+          <Link href="/incidents" className="btn-secondary px-5 py-2.5 text-[14px]">
+            View history
           </Link>
         </motion.div>
 
         <FadeIn delay={0.4}>
-          <div className="mt-10 text-[12px] text-ink-500">
-            Works out of the box — no keys required. Demo mode ships with three realistic incidents.
+          <div className="mt-8 text-[12px] text-ink-500">
+            Three realistic incidents preloaded. No keys needed to try it.
           </div>
         </FadeIn>
       </div>
@@ -131,14 +118,15 @@ function HeroPreview() {
               <span className="chip">checkout-api · payments-worker · redis</span>
             </div>
             <h3 className="mt-3 text-2xl font-semibold tracking-tight text-ink-50">
-              Cascading checkout failure — DB pool exhaustion → Redis cluster down
+              Cascading checkout failure
             </h3>
-            <p className="mt-3 text-sm text-ink-300 leading-relaxed">
+            <p className="mt-3 text-sm text-ink-400 leading-relaxed">
               Postgres writer pool exhausted on{" "}
-              <span className="text-brand-300">checkout-api</span>, back-pressuring{" "}
-              <span className="text-brand-300">payments-worker</span> until Redis
-              hit CLUSTERDOWN. Within 110 seconds the api-gateway tripped its
-              circuit breaker and SLO burn reached 84×.
+              <span className="text-ink-100 font-medium">checkout-api</span>,
+              back-pressuring{" "}
+              <span className="text-ink-100 font-medium">payments-worker</span>{" "}
+              until Redis hit CLUSTERDOWN. Within 110 seconds the api-gateway
+              tripped its circuit breaker and SLO burn reached 84x.
             </p>
 
             <div className="mt-5 grid grid-cols-3 gap-3">
@@ -197,11 +185,20 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function SocialProof() {
-  const integrations = ["Datadog", "Grafana", "New Relic", "AWS Bedrock", "Loki", "CloudWatch"];
+  const integrations = [
+    "Datadog",
+    "Grafana",
+    "New Relic",
+    "PagerDuty",
+    "Opsgenie",
+    "Slack",
+  ];
   return (
     <section className="border-y border-white/[0.05] bg-ink-950/50">
       <div className="mx-auto max-w-7xl px-6 py-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-ink-500">
-        <span className="text-[11px] uppercase tracking-[0.2em]">Plays well with</span>
+        <span className="text-[11px] uppercase tracking-[0.2em]">
+          Integrates with
+        </span>
         {integrations.map((n) => (
           <span key={n} className="text-sm font-medium text-ink-300">
             {n}
@@ -215,28 +212,28 @@ function SocialProof() {
 const FEATURES = [
   {
     icon: Microscope,
-    title: "Forensic mode — reverse the cascade",
-    body: "Trace the failure back to patient zero, map the full propagation path, and see every entity caught in the blast radius. Inspired by malware-forensic tooling.",
+    title: "Forensic mode",
+    body: "Trace the failure back to patient zero. Map the propagation path. See every service, dependency, and user segment caught in the blast radius.",
   },
   {
     icon: Brain,
     title: "Root cause in seconds",
-    body: "AWS Bedrock (Nova Pro) reads logs, traces, and alerts — and returns the single most likely cause with quoted evidence and a confidence score.",
+    body: "The agent reads logs, traces, and alerts. It returns the single most likely cause with quoted evidence and a confidence score.",
   },
   {
     icon: Clock,
     title: "Timeline reconstruction",
-    body: "Every event in chronological order. See exactly when pressure started, when the cascade tripped, and when the breaker opened.",
+    body: "Every event in chronological order. See when pressure started, when the cascade tripped, and when the breaker opened.",
   },
   {
     icon: Workflow,
     title: "Affected services map",
-    body: "Service names pulled from your logs, classified by role, with a clear health verdict — healthy, degraded, or down.",
+    body: "Service names pulled from your logs, classified by role, with a clear health verdict.",
   },
   {
     icon: ShieldCheck,
     title: "Explainable severity",
-    body: "P1 / P2 / P3 with reasoning. Not just a label — IncidentIQ tells you why this is a P1, in plain English.",
+    body: "P1, P2, or P3 with reasoning. Not just a label. The agent tells you why this is a P1, in plain English.",
   },
   {
     icon: GitBranch,
@@ -245,8 +242,8 @@ const FEATURES = [
   },
   {
     icon: FileDown,
-    title: "One-click PDF post-mortem",
-    body: "Hand the report straight to leadership or drop it into Confluence. Ready to share before your coffee cools.",
+    title: "One-click post mortem",
+    body: "Polished PDF ready to drop into Confluence or send to leadership. Generated alongside the analysis.",
   },
 ];
 
@@ -271,8 +268,8 @@ function Features() {
       >
         {FEATURES.map(({ icon: Icon, title, body }) => (
           <FadeItem key={title} variant="cardRise">
-            <HoverCard className="card-pad h-full hover:border-white/10 hover:bg-ink-900/80 transition-colors">
-              <div className="size-9 grid place-items-center rounded-lg bg-brand-500/10 text-brand-300 border border-brand-500/20">
+            <HoverCard className="card-pad h-full hover:border-white/[0.10] hover:bg-ink-900/60 transition-colors">
+              <div className="size-9 grid place-items-center rounded-lg bg-white/[0.04] text-ink-100 border border-white/[0.08]">
                 <Icon className="size-4" />
               </div>
               <h3 className="mt-4 font-semibold text-ink-50">{title}</h3>
@@ -286,9 +283,21 @@ function Features() {
 }
 
 const STEPS = [
-  { n: "01", title: "Connect or paste", body: "Wire up Datadog, Grafana, or New Relic — or just paste raw logs / drop a file. Works either way." },
-  { n: "02", title: "Analyze", body: "IncidentIQ pipes the telemetry into Amazon Nova Pro with a prompt tuned for SRE-grade root-cause analysis." },
-  { n: "03", title: "Triage in seconds", body: "Root cause, timeline, severity, affected services, ranked fixes. Plus a PDF for the post-mortem." },
+  {
+    n: "01",
+    title: "Connect or paste",
+    body: "Wire up Datadog, Grafana, or New Relic. Or just paste raw logs and drop a file. Works either way.",
+  },
+  {
+    n: "02",
+    title: "Analyze",
+    body: "The agent runs eight investigation tools across the telemetry, then synthesises a structured analysis.",
+  },
+  {
+    n: "03",
+    title: "Triage in seconds",
+    body: "Root cause, timeline, severity, affected services, ranked fixes, and a PDF post mortem.",
+  },
 ];
 
 function HowItWorks() {
@@ -308,7 +317,7 @@ function HowItWorks() {
         <ol className="space-y-4">
           {STEPS.map((s) => (
             <li key={s.n} className="card-pad flex gap-5">
-              <div className="font-mono text-2xl text-brand-300/80 tabular-nums">
+              <div className="font-mono text-2xl text-ink-400 tabular-nums">
                 {s.n}
               </div>
               <div>
@@ -328,21 +337,17 @@ function HowItWorks() {
 function CTA() {
   return (
     <section className="mx-auto max-w-5xl px-6 py-24 text-center">
-      <div className="relative rounded-3xl border border-white/[0.08] bg-gradient-to-br from-brand-500/15 via-ink-900 to-ink-900 p-12 overflow-hidden">
-        <div className="absolute inset-0 bg-dots opacity-30" />
+      <div className="relative rounded-3xl border border-white/[0.06] bg-ink-900/40 p-12 overflow-hidden">
         <div className="relative">
-          <div className="chip mx-auto mb-5">
-            <Layers className="size-3.5" /> Production-grade SRE tooling
-          </div>
           <h3 className="text-3xl md:text-4xl font-semibold tracking-tight text-ink-50">
             What took 2 hours now takes 10 seconds.
           </h3>
-          <p className="mt-3 text-ink-300 max-w-xl mx-auto">
-            Stop scrolling logs at 3am. Let IncidentIQ tell you what broke, why, and exactly how to fix it.
+          <p className="mt-3 text-ink-400 max-w-xl mx-auto">
+            Stop scrolling logs at 3am. Let the agent tell you what broke, why, and exactly how to fix it.
           </p>
           <div className="mt-7">
-            <Link href="/dashboard" className="btn-primary px-5 py-2.5">
-              <Sparkles className="size-4" /> Open the dashboard
+            <Link href="/dashboard" className="btn-primary px-5 py-2.5 text-[14px]">
+              Open the dashboard
               <ArrowRight className="size-4" />
             </Link>
           </div>

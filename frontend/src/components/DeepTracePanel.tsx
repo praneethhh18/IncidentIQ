@@ -175,7 +175,7 @@ function RevisedVerdict({ report }: { report: DeepTraceReport }) {
             </p>
           ) : (
             <p className="mt-1.5 text-[13px] text-ink-300">
-              Deep Trace verified the original root cause — confidence promoted from
+              Deep Trace verified the original root cause. Confidence promoted from
               the regular pass.
             </p>
           )}

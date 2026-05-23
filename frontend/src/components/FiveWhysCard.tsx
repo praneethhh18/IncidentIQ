@@ -15,7 +15,7 @@ export function FiveWhysCard({ whys }: { whys: FiveWhys }) {
             The 5 Whys
           </h3>
           <p className="text-[12px] text-ink-400 mt-0.5">
-            Recursive root-cause questioning — keep asking &apos;why&apos; until
+            Recursive root-cause questioning. Keep asking &apos;why&apos; until
             you reach the systemic cause.
           </p>
         </div>
@@ -55,7 +55,7 @@ export function FiveWhysCard({ whys }: { whys: FiveWhys }) {
         {whys.counter_factual ? (
           <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3">
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-amber-300 font-semibold">
-              <Lightbulb className="size-3.5" /> Counter-factual — what would have prevented this
+              <Lightbulb className="size-3.5" /> Counter-factual
             </div>
             <p className="text-[13px] text-ink-200 mt-1.5 leading-snug">
               {whys.counter_factual}

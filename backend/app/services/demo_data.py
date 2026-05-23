@@ -35,7 +35,7 @@ CASCADING_FAILURE_LOGS = """\
 2026-05-23T02:58:47.902Z WARN  payments-worker   Redis cluster slot moved key=order:lock:u_5512 → node-3 (was node-1)
 2026-05-23T02:59:11.220Z ERROR checkout-api      Postgres pool exhausted: 200/200 connections in use, 47 waiting
 2026-05-23T02:59:14.553Z ERROR checkout-api      Request POST /api/v1/checkout user=u_5512 status=503 took 30012ms (pool timeout)
-2026-05-23T02:59:18.117Z ERROR payments-worker   Failed to acquire order lock — Redis CLUSTERDOWN: The cluster is down
+2026-05-23T02:59:18.117Z ERROR payments-worker   Failed to acquire order lock - Redis CLUSTERDOWN: The cluster is down
 2026-05-23T02:59:24.901Z WARN  api-gateway       Upstream checkout-api 5xx rate 38% over last 1m
 2026-05-23T02:59:41.336Z ERROR notifications-svc Worker queue backlog 14,217 messages (threshold 2,000)
 2026-05-23T03:00:02.812Z ERROR checkout-api      Circuit breaker OPENED for upstream: payments-worker (50/50 fails)
@@ -47,9 +47,9 @@ CASCADING_FAILURE_LOGS = """\
 
 MEMORY_LEAK_LOGS = """\
 2026-05-22T14:02:11Z INFO  recommendations-svc Pod started rev=git:8a1f2b3 heap_limit=1024MiB
-2026-05-22T15:30:22Z WARN  recommendations-svc Heap usage 612MiB (60%) — GC pause 240ms
-2026-05-22T16:48:11Z WARN  recommendations-svc Heap usage 812MiB (79%) — GC pause 520ms p99 latency 1.4s
-2026-05-22T17:22:08Z WARN  recommendations-svc Heap usage 905MiB (88%) — Full GC pause 1.2s p99 latency 3.1s
+2026-05-22T15:30:22Z WARN  recommendations-svc Heap usage 612MiB (60%) - GC pause 240ms
+2026-05-22T16:48:11Z WARN  recommendations-svc Heap usage 812MiB (79%) - GC pause 520ms p99 latency 1.4s
+2026-05-22T17:22:08Z WARN  recommendations-svc Heap usage 905MiB (88%) - Full GC pause 1.2s p99 latency 3.1s
 2026-05-22T17:51:30Z ERROR recommendations-svc java.lang.OutOfMemoryError: Java heap space
 2026-05-22T17:51:30Z ERROR recommendations-svc   at c.acme.reco.UserSimilarityCache.put(UserSimilarityCache.java:148)
 2026-05-22T17:51:30Z ERROR recommendations-svc   at c.acme.reco.RecommendationService.warm(RecommendationService.java:73)
@@ -64,8 +64,8 @@ DB_OUTAGE_LOGS = """\
 2026-05-23T08:42:54Z WARN  orders-api        SlowQuery 6.7s SELECT * FROM order_items WHERE order_id IN (...)
 2026-05-23T08:43:18Z ERROR orders-api        Postgres connection lost: server closed the connection unexpectedly
 2026-05-23T08:43:18Z ERROR orders-api        Failover detected: writer endpoint switched to rds-orders-prod-2
-2026-05-23T08:43:42Z ERROR orders-api        503 — could not get connection, pool exhausted during failover
-2026-05-23T08:44:01Z WARN  orders-api        Replica lag 18.4s (threshold 5s) — read-after-write inconsistencies likely
+2026-05-23T08:43:42Z ERROR orders-api        503 - could not get connection, pool exhausted during failover
+2026-05-23T08:44:01Z WARN  orders-api        Replica lag 18.4s (threshold 5s) - read-after-write inconsistencies likely
 2026-05-23T08:44:09Z ERROR inventory-svc     Stale read detected: order #91823 status=pending but payment captured 14s ago
 """
 
@@ -80,7 +80,7 @@ def _now_minus(minutes: int = 0, seconds: int = 0) -> datetime:
 def cascading_failure_demo() -> AnalyzeResponse:
     base = _now_minus(minutes=2)
     return AnalyzeResponse(
-        title="Cascading checkout failure — DB pool exhaustion → Redis cluster down",
+        title="Cascading checkout failure - DB pool exhaustion → Redis cluster down",
         summary=(
             "A Postgres writer connection pool spike on checkout-api caused request "
             "queueing, which back-pressured payments-worker. As payments-worker piled "
@@ -96,7 +96,7 @@ def cascading_failure_demo() -> AnalyzeResponse:
         confidence=0.92,
         severity=Severity.P1,
         severity_rationale=(
-            "User-visible checkout failure at 42% error rate with active SLO burn — "
+            "User-visible checkout failure at 42% error rate with active SLO burn - "
             "this is revenue-impacting and customer-visible. P1 by definition."
         ),
         affected_services=[
@@ -121,7 +121,7 @@ def cascading_failure_demo() -> AnalyzeResponse:
             AffectedService(
                 name="redis-cluster",
                 role="cache",
-                impact="CLUSTERDOWN — slot migration in flight",
+                impact="CLUSTERDOWN - slot migration in flight",
                 health="down",
             ),
             AffectedService(
@@ -174,7 +174,7 @@ def cascading_failure_demo() -> AnalyzeResponse:
                 priority=1,
                 title="Kill the long-running writer query and add a statement timeout",
                 rationale=(
-                    "The pool didn't grow — connections are being held. A bounded "
+                    "The pool didn't grow - connections are being held. A bounded "
                     "statement_timeout prevents one slow query from starving the pool."
                 ),
                 action="Identify the blocking query, terminate it, then enforce a 5s statement timeout.",
@@ -209,7 +209,7 @@ def cascading_failure_demo() -> AnalyzeResponse:
                 priority=4,
                 title="Raise payments-worker memory limit and add OOM alerting",
                 rationale=(
-                    "Heap reached 512MiB then RSS 731MiB — the limit is tight for "
+                    "Heap reached 512MiB then RSS 731MiB - the limit is tight for "
                     "current traffic. Add an alert before OOMKilled fires."
                 ),
                 action="Raise pod memory limit to 1Gi, add a >85% heap alert with 5-min window.",
@@ -220,7 +220,7 @@ def cascading_failure_demo() -> AnalyzeResponse:
         ],
         evidence=[
             "ERROR checkout-api Postgres pool exhausted: 200/200 connections in use, 47 waiting",
-            "ERROR payments-worker Failed to acquire order lock — Redis CLUSTERDOWN: The cluster is down",
+            "ERROR payments-worker Failed to acquire order lock - Redis CLUSTERDOWN: The cluster is down",
             "ERROR checkout-api Circuit breaker OPENED for upstream: payments-worker (50/50 fails)",
             "FATAL payments-worker Out of memory: heap=512MiB rss=731MiB, killing process",
             "ERROR api-gateway SLO burn: error_rate=42% target=0.5% (84x budget burn)",
@@ -230,10 +230,10 @@ def cascading_failure_demo() -> AnalyzeResponse:
         forensic=ForensicReport(
             patient_zero=TimelineEvent(
                 timestamp=base,
-                label="Patient zero — first connection wait",
+                label="Patient zero - first connection wait",
                 detail=(
                     "checkout-api logged Postgres pool getConnection waited 1.8s "
-                    "on db-primary.internal — the first abnormal signal before any "
+                    "on db-primary.internal - the first abnormal signal before any "
                     "user-visible failure."
                 ),
                 severity=Severity.P3,
@@ -293,7 +293,7 @@ def cascading_failure_demo() -> AnalyzeResponse:
             trigger_hypothesis=(
                 "Long-running writer query on db-primary held connections past the "
                 "pool's idle timeout, starving new requests. The Redis slot migration "
-                "happened concurrently but is symptom, not cause — the database "
+                "happened concurrently but is symptom, not cause - the database "
                 "pressure is what birthed patient zero."
             ),
             trigger_confidence=0.78,
@@ -305,12 +305,12 @@ def cascading_failure_demo() -> AnalyzeResponse:
 def memory_leak_demo() -> AnalyzeResponse:
     base = _now_minus(minutes=240)
     return AnalyzeResponse(
-        title="recommendations-svc OOMKilled — UserSimilarityCache unbounded growth",
+        title="recommendations-svc OOMKilled - UserSimilarityCache unbounded growth",
         summary=(
             "recommendations-svc has been OOMKilled five times over 4 hours. Heap "
             "usage climbs linearly from start-up until a Full GC pause crosses the "
             "1-second mark, at which point an OOM terminates the process. Stack "
-            "traces consistently point at UserSimilarityCache.put — an in-memory "
+            "traces consistently point at UserSimilarityCache.put - an in-memory "
             "cache without eviction."
         ),
         root_cause=(
@@ -347,7 +347,7 @@ def memory_leak_demo() -> AnalyzeResponse:
             TimelineEvent(
                 timestamp=base + timedelta(minutes=88),
                 label="Heap at 60%",
-                detail="GC pauses growing to 240ms — first warning sign.",
+                detail="GC pauses growing to 240ms - first warning sign.",
                 severity=Severity.P3,
             ),
             TimelineEvent(
@@ -411,7 +411,7 @@ def memory_leak_demo() -> AnalyzeResponse:
         forensic=ForensicReport(
             patient_zero=TimelineEvent(
                 timestamp=base + timedelta(minutes=88),
-                label="Patient zero — heap pressure begins",
+                label="Patient zero - heap pressure begins",
                 detail=(
                     "Heap usage crossed 60% with GC pauses growing to 240ms. "
                     "The leak started here; OOMs came an hour later."
@@ -454,7 +454,7 @@ def memory_leak_demo() -> AnalyzeResponse:
                 "UserSimilarityCache was introduced without a max-size or TTL "
                 "policy. As traffic grew and more unique user IDs entered the "
                 "cache, the heap filled linearly until the JVM ran out of space. "
-                "No precipitating deploy / config event — this is slow-burn "
+                "No precipitating deploy / config event - this is slow-burn "
                 "resource exhaustion, latent in the code from the start."
             ),
             trigger_confidence=0.82,
@@ -466,7 +466,7 @@ def memory_leak_demo() -> AnalyzeResponse:
 def db_outage_demo() -> AnalyzeResponse:
     base = _now_minus(minutes=12)
     return AnalyzeResponse(
-        title="RDS failover with replica lag — orders-api stale reads",
+        title="RDS failover with replica lag - orders-api stale reads",
         summary=(
             "rds-orders-prod underwent a writer failover. orders-api recovered "
             "connections quickly but the new writer's replicas are 18s behind, "
@@ -494,7 +494,7 @@ def db_outage_demo() -> AnalyzeResponse:
             AffectedService(
                 name="inventory-svc",
                 role="worker",
-                impact="Stale reads — observed inconsistency on order #91823",
+                impact="Stale reads - observed inconsistency on order #91823",
                 health="degraded",
             ),
             AffectedService(
@@ -526,7 +526,7 @@ def db_outage_demo() -> AnalyzeResponse:
             TimelineEvent(
                 timestamp=base + timedelta(minutes=1, seconds=59),
                 label="Replica lag breach",
-                detail="Lag at 18.4s — read-after-write inconsistencies likely.",
+                detail="Lag at 18.4s - read-after-write inconsistencies likely.",
                 severity=Severity.P1,
             ),
             TimelineEvent(
@@ -571,7 +571,7 @@ def db_outage_demo() -> AnalyzeResponse:
         evidence=[
             "ERROR Postgres connection lost: server closed the connection unexpectedly",
             "ERROR Failover detected: writer endpoint switched to rds-orders-prod-2",
-            "WARN  Replica lag 18.4s (threshold 5s) — read-after-write inconsistencies likely",
+            "WARN  Replica lag 18.4s (threshold 5s) - read-after-write inconsistencies likely",
             "ERROR Stale read detected: order #91823 status=pending but payment captured 14s ago",
         ],
         source=SourceKind.DEMO,
@@ -579,9 +579,9 @@ def db_outage_demo() -> AnalyzeResponse:
         forensic=ForensicReport(
             patient_zero=TimelineEvent(
                 timestamp=base,
-                label="Patient zero — slow queries on old primary",
+                label="Patient zero - slow queries on old primary",
                 detail=(
-                    "orders-api SlowQuery 4.2s on SELECT orders WHERE user_id — "
+                    "orders-api SlowQuery 4.2s on SELECT orders WHERE user_id - "
                     "sustained slow queries are what eventually drove RDS to "
                     "promote the standby. Failover was a symptom, not the cause."
                 ),
@@ -610,7 +610,7 @@ def db_outage_demo() -> AnalyzeResponse:
                 BlastRadiusEntity(
                     kind="service",
                     name="inventory-svc",
-                    impact="Stale reads — observed inconsistency on order #91823",
+                    impact="Stale reads - observed inconsistency on order #91823",
                     severity=Severity.P1,
                 ),
                 BlastRadiusEntity(
