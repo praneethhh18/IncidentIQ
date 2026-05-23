@@ -96,7 +96,7 @@ pre,
 
 /* Section heading style — used across all card titles for consistency */
 .section-title {
-  @apply text-[11px] font-semibold tracking-[0.16em] text-ink-400 uppercase;
+  @apply text-[11px] font-semibold tracking-[0.16em] text-ink-200 uppercase;
 }
 
 /* Form controls */

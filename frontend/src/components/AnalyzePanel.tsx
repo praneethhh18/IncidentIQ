@@ -156,23 +156,23 @@ export function AnalyzePanel({
 
   return (
     <div className="space-y-6">
-      <div className="card overflow-hidden">
+      <div className="rounded-2xl border border-white/[0.08] bg-ink-950/85 backdrop-blur-md overflow-hidden">
         {/* Tab bar */}
-        <div className="flex items-center gap-1 px-3 pt-3 border-b border-white/[0.06] overflow-x-auto">
+        <div className="flex items-center gap-1 px-3 pt-3 pb-0 border-b border-white/[0.08] overflow-x-auto bg-ink-950/50">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "relative px-3.5 py-2 text-[13px] rounded-t-lg transition shrink-0",
+                "relative px-3.5 py-2.5 text-[13px] rounded-t-lg transition shrink-0 font-medium",
                 tab === t.id
-                  ? "text-ink-50 bg-ink-900/80"
-                  : "text-ink-400 hover:text-ink-200",
+                  ? "text-ink-50 bg-ink-900 border-x border-t border-white/[0.10]"
+                  : "text-ink-200 hover:text-white hover:bg-white/[0.04]",
               )}
             >
               {t.label}
               {tab === t.id ? (
-                <span className="absolute left-2 right-2 -bottom-px h-px bg-brand-400" />
+                <span className="absolute left-3 right-3 -bottom-px h-[2px] bg-white rounded-full" />
               ) : null}
             </button>
           ))}

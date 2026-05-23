@@ -53,7 +53,7 @@ function BackgroundAurora() {
 
 function NavBar() {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/[0.05] bg-ink-950/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/[0.08] bg-ink-950/90 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-6 h-14 flex items-center justify-between">
         <Link
           href="/"
@@ -66,13 +66,13 @@ function NavBar() {
         <nav className="flex items-center gap-6 text-[13px]">
           <Link
             href="/dashboard"
-            className="text-ink-400 hover:text-ink-50 transition"
+            className="text-ink-200 hover:text-white transition font-medium"
           >
             Dashboard
           </Link>
           <Link
             href="/incidents"
-            className="text-ink-400 hover:text-ink-50 transition"
+            className="text-ink-200 hover:text-white transition font-medium"
           >
             History
           </Link>
