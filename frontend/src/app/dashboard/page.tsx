@@ -9,6 +9,7 @@ import type {
   SampleIncident,
 } from "@/lib/types";
 import { AnalyzePanel } from "@/components/AnalyzePanel";
+import { ComingSoonIntegrations } from "@/components/ComingSoonIntegrations";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,8 @@ export default async function DashboardPage() {
       <Suspense>
         <AnalyzePanel samples={samples} integrations={integrations} />
       </Suspense>
+
+      <ComingSoonIntegrations />
     </section>
   );
 }
