@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useScroll,
+  useTransform,
+} from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
 import { EASE } from "@/lib/motion";
@@ -516,36 +521,167 @@ const STEPS = [
 ];
 
 function HowItWorks() {
+  // Anchor scroll observation to the section. As the user scrolls through
+  // it, scrollYProgress goes 0 -> 1 and we use that to (a) highlight the
+  // active step and (b) draw the vertical progress line down the column
+  // of steps.
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start 60%", "end 80%"],
+  });
+  // Map 0 -> 1 into a continuous "active step index" from -0.2 to 2.8 so
+  // each step has a clear active window without abrupt jumps at the edges.
+  const activeFloat = useTransform(scrollYProgress, [0, 1], [-0.2, STEPS.length - 0.2]);
+
   return (
-    <section className="border-t border-white/[0.05] bg-ink-950/60">
+    <section
+      ref={sectionRef}
+      className="border-t border-white/[0.05] bg-ink-950/60"
+    >
       <div className="mx-auto max-w-7xl px-6 py-24 grid lg:grid-cols-[1fr,2fr] gap-12">
-        <div>
+        {/* Sticky left rail: stays visible while you scroll through the steps. */}
+        <div className="lg:sticky lg:top-24 lg:self-start">
           <div className="chip">How it works</div>
           <h2 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-ink-50">
-            Three steps.<br />Zero noise.
+            Three steps.
+            <br />
+            Zero noise.
           </h2>
-          <p className="mt-3 text-ink-300">
+          <p className="mt-3 text-ink-400 leading-relaxed">
             No agents to install. No log shipping to set up. IncidentIQ talks
             to your existing observability stack and gets out of the way.
           </p>
+
+          {/* Step pill counter that updates as you scroll */}
+          <StepCounter activeFloat={activeFloat} />
         </div>
-        <ol className="space-y-4">
-          {STEPS.map((s) => (
-            <li key={s.n} className="card-pad flex gap-5">
-              <div className="font-mono text-2xl text-ink-400 tabular-nums">
-                {s.n}
-              </div>
-              <div>
-                <div className="font-semibold text-ink-50">{s.title}</div>
-                <div className="mt-1 text-sm text-ink-400 leading-relaxed">
-                  {s.body}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
+
+        {/* Right column: steps with their own scroll-tracked highlights and
+            a vertical progress rail running down the left edge. */}
+        <div className="relative">
+          {/* Static rail */}
+          <span
+            aria-hidden
+            className="absolute left-[1.45rem] top-3 bottom-3 w-px bg-white/[0.06]"
+          />
+          {/* Animated progress rail that grows down with scroll */}
+          <motion.span
+            aria-hidden
+            style={{ scaleY: scrollYProgress }}
+            className="absolute left-[1.45rem] top-3 bottom-3 w-px origin-top bg-gradient-to-b from-violet-400 via-violet-300 to-white"
+          />
+
+          <ol className="space-y-5">
+            {STEPS.map((s, i) => (
+              <ScrollStep
+                key={s.n}
+                step={s}
+                index={i}
+                activeFloat={activeFloat}
+              />
+            ))}
+          </ol>
+        </div>
       </div>
     </section>
+  );
+}
+
+function StepCounter({
+  activeFloat,
+}: {
+  activeFloat: ReturnType<typeof useTransform<number, number>>;
+}) {
+  const [n, setN] = useState(1);
+  useEffect(() => {
+    const unsubscribe = activeFloat.on("change", (v) => {
+      const clamped = Math.max(0, Math.min(STEPS.length - 1, Math.round(v)));
+      setN(clamped + 1);
+    });
+    return unsubscribe;
+  }, [activeFloat]);
+  return (
+    <div className="mt-8 inline-flex items-center gap-2 chip font-mono">
+      <span className="tabular-nums">step {n}</span>
+      <span className="text-ink-700">/</span>
+      <span className="text-ink-500 tabular-nums">{STEPS.length}</span>
+    </div>
+  );
+}
+
+function ScrollStep({
+  step,
+  index,
+  activeFloat,
+}: {
+  step: { n: string; title: string; body: string };
+  index: number;
+  activeFloat: ReturnType<typeof useTransform<number, number>>;
+}) {
+  // Each step has a "distance from active" value. 0 = right on it,
+  // 1+ = far away. We use that to drive opacity (active is full,
+  // others fade) and the highlight ring on the number badge.
+  const [distance, setDistance] = useState(Math.abs(index));
+  useEffect(() => {
+    const unsubscribe = activeFloat.on("change", (v) => {
+      setDistance(Math.abs(v - index));
+    });
+    return unsubscribe;
+  }, [activeFloat, index]);
+
+  const isActive = distance < 0.5;
+  const opacity = Math.max(0.32, 1 - distance * 0.42);
+
+  return (
+    <motion.li
+      animate={{ opacity }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className={cn(
+        "relative grid grid-cols-[3rem,1fr] gap-5 rounded-2xl border p-5 transition-colors duration-300",
+        isActive
+          ? "border-white/[0.10] bg-ink-900/70"
+          : "border-white/[0.05] bg-ink-900/30",
+      )}
+    >
+      {/* Number badge with active ring */}
+      <div className="relative">
+        <motion.span
+          aria-hidden
+          className="absolute inset-[-6px] rounded-full"
+          animate={{
+            boxShadow: isActive
+              ? "0 0 0 1px rgba(167, 139, 250, 0.5), 0 0 32px -6px rgba(167, 139, 250, 0.4)"
+              : "0 0 0 0px rgba(167, 139, 250, 0)",
+          }}
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        />
+        <span
+          className={cn(
+            "relative grid place-items-center size-12 rounded-full font-mono tabular-nums text-sm transition-colors duration-300",
+            isActive
+              ? "bg-ink-950 text-ink-50 border border-violet-400/40"
+              : "bg-ink-950 text-ink-500 border border-white/[0.08]",
+          )}
+        >
+          {step.n}
+        </span>
+      </div>
+
+      <div className="pt-1">
+        <div
+          className={cn(
+            "font-semibold transition-colors duration-300",
+            isActive ? "text-ink-50" : "text-ink-300",
+          )}
+        >
+          {step.title}
+        </div>
+        <div className="mt-1.5 text-[13.5px] text-ink-400 leading-relaxed">
+          {step.body}
+        </div>
+      </div>
+    </motion.li>
   );
 }
 
