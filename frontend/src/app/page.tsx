@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 
 import { EASE } from "@/lib/motion";
 import { FadeIn } from "@/components/motion-primitives";
+import { BeforeAfterCTA } from "@/components/BeforeAfterCTA";
 import { SystemDiagram } from "@/components/SystemDiagram";
 
 export default function Landing() {
@@ -15,7 +16,7 @@ export default function Landing() {
       <SocialProof />
       <Features />
       <HowItWorks />
-      <CTA />
+      <BeforeAfterCTA />
     </>
   );
 }
@@ -278,25 +279,3 @@ function HowItWorks() {
   );
 }
 
-function CTA() {
-  return (
-    <section className="mx-auto max-w-5xl px-6 py-24 text-center">
-      <div className="relative rounded-3xl border border-white/[0.06] bg-ink-900/40 p-12 overflow-hidden">
-        <div className="relative">
-          <h3 className="text-3xl md:text-4xl font-semibold tracking-tight text-ink-50">
-            What took 2 hours now takes 10 seconds.
-          </h3>
-          <p className="mt-3 text-ink-400 max-w-xl mx-auto">
-            Stop scrolling logs at 3am. Let the agent tell you what broke, why, and exactly how to fix it.
-          </p>
-          <div className="mt-7">
-            <Link href="/dashboard" className="btn-primary px-5 py-2.5 text-[14px]">
-              Open the dashboard
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
