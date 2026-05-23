@@ -18,6 +18,7 @@ from app.prompts.root_cause import SYSTEM_PROMPT, build_user_prompt
 from app.services.agent import IncidentAgent
 from app.services.bedrock import BedrockClient, BedrockUnavailable
 from app.services.demo_data import fallback_analysis
+from app.services.impact import build_business_impact, build_five_whys
 from app.services.integrations import IntegrationRegistry
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,16 @@ class Analyzer:
 
         result = self._agent.audit_and_annotate(trail, agent_context, result)
 
+        yield {
+            "event": "phase",
+            "phase": "impact",
+            "message": "Quantifying business impact and generating 5 Whys…",
+        }
+        if result.business_impact is None:
+            result.business_impact = build_business_impact(result)
+        if result.five_whys is None:
+            result.five_whys = build_five_whys(result)
+
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         result.duration_ms = elapsed_ms
         result.source = request.source
@@ -145,6 +156,14 @@ class Analyzer:
 
         # Phase 3 — self-check and stitch the audit trail onto the response.
         result = self._agent.audit_and_annotate(trail, agent_context, result)
+
+        # Phase 4 — derive business impact + 5 Whys from the structured analysis.
+        # These run regardless of whether Bedrock supplied them, so the dashboard
+        # always has the full picture.
+        if result.business_impact is None:
+            result.business_impact = build_business_impact(result)
+        if result.five_whys is None:
+            result.five_whys = build_five_whys(result)
 
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         result.duration_ms = elapsed_ms

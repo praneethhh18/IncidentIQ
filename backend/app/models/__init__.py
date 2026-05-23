@@ -4,6 +4,8 @@ from app.models.incident import (
     AnalyzeResponse,
     AffectedService,
     BlastRadiusEntity,
+    BusinessImpact,
+    FiveWhys,
     FixRecommendation,
     ForensicReport,
     IncidentSummary,
@@ -11,6 +13,7 @@ from app.models.incident import (
     Severity,
     SourceKind,
     TimelineEvent,
+    WhyStep,
 )
 
 __all__ = [
@@ -19,6 +22,8 @@ __all__ = [
     "AnalyzeResponse",
     "AffectedService",
     "BlastRadiusEntity",
+    "BusinessImpact",
+    "FiveWhys",
     "FixRecommendation",
     "ForensicReport",
     "IncidentSummary",
@@ -26,4 +31,5 @@ __all__ = [
     "Severity",
     "SourceKind",
     "TimelineEvent",
+    "WhyStep",
 ]

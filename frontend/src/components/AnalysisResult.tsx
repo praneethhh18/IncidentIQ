@@ -13,7 +13,9 @@ import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
 
 import { AgentTrail } from "./AgentTrail";
+import { BusinessImpactCard } from "./BusinessImpactCard";
 import { EvidenceList } from "./EvidenceList";
+import { FiveWhysCard } from "./FiveWhysCard";
 import { FixRecommendations } from "./FixRecommendations";
 import { ForensicReport } from "./ForensicReport";
 import { IncidentTimeline } from "./IncidentTimeline";
@@ -72,6 +74,10 @@ export function AnalysisResult({
         <p className="mt-3 text-ink-300 leading-relaxed">{analysis.summary}</p>
       </header>
 
+      {analysis.business_impact ? (
+        <BusinessImpactCard impact={analysis.business_impact} />
+      ) : null}
+
       <div className="grid lg:grid-cols-2 gap-5">
         <RootCauseCard analysis={analysis} />
         <div className="card-pad">
@@ -85,6 +91,8 @@ export function AnalysisResult({
       {analysis.forensic ? (
         <ForensicReport forensic={analysis.forensic} />
       ) : null}
+
+      {analysis.five_whys ? <FiveWhysCard whys={analysis.five_whys} /> : null}
 
       <div className="grid lg:grid-cols-[1.1fr,1fr] gap-5">
         <div className="card-pad">

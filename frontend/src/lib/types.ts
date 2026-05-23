@@ -58,6 +58,30 @@ export interface ForensicReport {
   minutes_to_detection: number | null;
 }
 
+export interface BusinessImpact {
+  affected_users_estimate: number;
+  affected_users_label: string;
+  revenue_at_risk_usd: number;
+  revenue_basis: string;
+  sla_breached: boolean;
+  sla_detail: string;
+  estimated_mttr_minutes: number;
+  customer_communication_required: boolean;
+  user_segments: string[];
+}
+
+export interface WhyStep {
+  n: number;
+  question: string;
+  answer: string;
+}
+
+export interface FiveWhys {
+  steps: WhyStep[];
+  final_root_cause: string;
+  counter_factual: string;
+}
+
 export interface AnalyzeResponse {
   incident_id: string;
   created_at: string;
@@ -76,6 +100,8 @@ export interface AnalyzeResponse {
   duration_ms: number;
   agent_steps: AgentStep[];
   forensic: ForensicReport | null;
+  business_impact: BusinessImpact | null;
+  five_whys: FiveWhys | null;
 }
 
 export interface IncidentSummary {

@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,13 +16,6 @@ class Settings(BaseSettings):
     credential is optional — when missing, the corresponding service falls
     back to demo data so the application stays fully functional end-to-end.
     """
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
-    )
 
     # AWS Bedrock
     aws_access_key_id: str | None = None
@@ -46,19 +39,32 @@ class Settings(BaseSettings):
     # Slack webhook for auto-posting analyses (optional)
     slack_webhook_url: str | None = None
 
-    # Server
+    # Server — store as raw string and expose parsed list via property so
+    # pydantic-settings doesn't try to JSON-decode comma-separated input
+    # from .env files.
     port: int = 8000
-    cors_origins: List[str] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
+    cors_origins_raw: str = Field(
+        default="http://localhost:3000,http://127.0.0.1:3000",
+        validation_alias=AliasChoices("CORS_ORIGINS", "cors_origins_raw"),
     )
     log_level: str = "INFO"
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def _split_cors(cls, value: object) -> object:
-        if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
-        return value
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_prefix="",
+        # Allow CORS_ORIGINS as an alias for cors_origins_raw
+    )
+
+    @property
+    def cors_origins(self) -> List[str]:
+        return [
+            origin.strip()
+            for origin in (self.cors_origins_raw or "").split(",")
+            if origin.strip()
+        ]
 
     # ── Derived flags ──────────────────────────────────────────────────────
 
