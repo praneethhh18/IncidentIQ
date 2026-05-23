@@ -521,26 +521,18 @@ const STEPS = [
 ];
 
 function HowItWorks() {
-  // Anchor scroll observation to the section. As the user scrolls through
-  // it, scrollYProgress goes 0 -> 1 and we use that to (a) highlight the
-  // active step and (b) draw the vertical progress line down the column
-  // of steps.
-  const sectionRef = useRef<HTMLDivElement>(null);
+  // Anchor scroll to the row of step nodes (not the whole section), so
+  // the progress line starts filling exactly when the first node enters
+  // view and reaches 100% just as the last node centers in the viewport.
+  const nodesRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start 60%", "end 80%"],
+    target: nodesRef,
+    offset: ["start 70%", "end 60%"],
   });
-  // Map 0 -> 1 into a continuous "active step index" from -0.2 to 2.8 so
-  // each step has a clear active window without abrupt jumps at the edges.
-  const activeFloat = useTransform(scrollYProgress, [0, 1], [-0.2, STEPS.length - 0.2]);
 
   return (
-    <section
-      ref={sectionRef}
-      className="border-t border-white/[0.05] bg-ink-950/60"
-    >
+    <section className="border-t border-white/[0.05] bg-ink-950/60">
       <div className="mx-auto max-w-7xl px-6 py-24 grid lg:grid-cols-[1fr,2fr] gap-12">
-        {/* Sticky left rail: stays visible while you scroll through the steps. */}
         <div className="lg:sticky lg:top-24 lg:self-start">
           <div className="chip">How it works</div>
           <h2 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-ink-50">
@@ -552,33 +544,33 @@ function HowItWorks() {
             No agents to install. No log shipping to set up. IncidentIQ talks
             to your existing observability stack and gets out of the way.
           </p>
-
-          {/* Step pill counter that updates as you scroll */}
-          <StepCounter activeFloat={activeFloat} />
         </div>
 
-        {/* Right column: steps with their own scroll-tracked highlights and
-            a vertical progress rail running down the left edge. */}
-        <div className="relative">
-          {/* Static rail */}
+        {/* Steps. Each step is a self-contained card at full opacity. A
+            single vertical rail runs through the LEFT EDGE of the cards,
+            threading the number nodes. The rail fills with violet as the
+            user scrolls down the section. Each node lights up when the
+            scroll progress passes its position. */}
+        <div ref={nodesRef} className="relative">
+          {/* Track and animated fill, positioned to align with node centers */}
           <span
             aria-hidden
-            className="absolute left-[1.45rem] top-3 bottom-3 w-px bg-white/[0.06]"
+            className="absolute left-[1.5rem] top-6 bottom-6 w-px bg-white/[0.06]"
           />
-          {/* Animated progress rail that grows down with scroll */}
           <motion.span
             aria-hidden
             style={{ scaleY: scrollYProgress }}
-            className="absolute left-[1.45rem] top-3 bottom-3 w-px origin-top bg-gradient-to-b from-violet-400 via-violet-300 to-white"
+            className="absolute left-[1.5rem] top-6 bottom-6 w-px origin-top bg-gradient-to-b from-violet-400 via-violet-300 to-white shadow-[0_0_12px_rgba(167,139,250,0.4)]"
           />
 
-          <ol className="space-y-5">
-            {STEPS.map((s, i) => (
-              <ScrollStep
-                key={s.n}
-                step={s}
+          <ol className="space-y-6">
+            {STEPS.map((step, i) => (
+              <FlowStep
+                key={step.n}
+                step={step}
                 index={i}
-                activeFloat={activeFloat}
+                total={STEPS.length}
+                scrollYProgress={scrollYProgress}
               />
             ))}
           </ol>
@@ -588,100 +580,74 @@ function HowItWorks() {
   );
 }
 
-function StepCounter({
-  activeFloat,
-}: {
-  activeFloat: ReturnType<typeof useTransform<number, number>>;
-}) {
-  const [n, setN] = useState(1);
-  useEffect(() => {
-    const unsubscribe = activeFloat.on("change", (v) => {
-      const clamped = Math.max(0, Math.min(STEPS.length - 1, Math.round(v)));
-      setN(clamped + 1);
-    });
-    return unsubscribe;
-  }, [activeFloat]);
-  return (
-    <div className="mt-8 inline-flex items-center gap-2 chip font-mono">
-      <span className="tabular-nums">step {n}</span>
-      <span className="text-ink-700">/</span>
-      <span className="text-ink-500 tabular-nums">{STEPS.length}</span>
-    </div>
-  );
-}
-
-function ScrollStep({
+function FlowStep({
   step,
   index,
-  activeFloat,
+  total,
+  scrollYProgress,
 }: {
   step: { n: string; title: string; body: string };
   index: number;
-  activeFloat: ReturnType<typeof useTransform<number, number>>;
+  total: number;
+  scrollYProgress: ReturnType<typeof useScroll>["scrollYProgress"];
 }) {
-  // Each step has a "distance from active" value. 0 = right on it,
-  // 1+ = far away. We use that to drive opacity (active is full,
-  // others fade) and the highlight ring on the number badge.
-  const [distance, setDistance] = useState(Math.abs(index));
+  // This step "activates" when the scroll fill passes its node. We map
+  // each step to a slice of the 0..1 scroll range and track whether
+  // we're past it.
+  const threshold = (index + 0.5) / total;
+  const [reached, setReached] = useState(false);
   useEffect(() => {
-    const unsubscribe = activeFloat.on("change", (v) => {
-      setDistance(Math.abs(v - index));
+    const unsubscribe = scrollYProgress.on("change", (v) => {
+      setReached(v >= threshold - 0.02);
     });
     return unsubscribe;
-  }, [activeFloat, index]);
-
-  const isActive = distance < 0.5;
-  const opacity = Math.max(0.32, 1 - distance * 0.42);
+  }, [scrollYProgress, threshold]);
 
   return (
-    <motion.li
-      animate={{ opacity }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className={cn(
-        "relative grid grid-cols-[3rem,1fr] gap-5 rounded-2xl border p-5 transition-colors duration-300",
-        isActive
-          ? "border-white/[0.10] bg-ink-900/70"
-          : "border-white/[0.05] bg-ink-900/30",
-      )}
-    >
-      {/* Number badge with active ring */}
-      <div className="relative">
+    <li className="relative grid grid-cols-[3rem,1fr] items-start gap-5">
+      {/* Number node — sits on the vertical rail */}
+      <div className="relative grid place-items-center pt-5">
         <motion.span
           aria-hidden
-          className="absolute inset-[-6px] rounded-full"
+          className="absolute size-12 rounded-full pointer-events-none"
           animate={{
-            boxShadow: isActive
-              ? "0 0 0 1px rgba(167, 139, 250, 0.5), 0 0 32px -6px rgba(167, 139, 250, 0.4)"
+            boxShadow: reached
+              ? "0 0 0 1px rgba(167, 139, 250, 0.55), 0 0 32px -4px rgba(167, 139, 250, 0.55)"
               : "0 0 0 0px rgba(167, 139, 250, 0)",
           }}
-          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         />
         <span
           className={cn(
-            "relative grid place-items-center size-12 rounded-full font-mono tabular-nums text-sm transition-colors duration-300",
-            isActive
-              ? "bg-ink-950 text-ink-50 border border-violet-400/40"
-              : "bg-ink-950 text-ink-500 border border-white/[0.08]",
+            "relative grid place-items-center size-12 rounded-full font-mono tabular-nums text-sm transition-colors duration-500 z-10",
+            reached
+              ? "bg-ink-950 text-ink-50 border border-violet-400/50"
+              : "bg-ink-950 text-ink-500 border border-white/[0.10]",
           )}
         >
           {step.n}
         </span>
       </div>
 
-      <div className="pt-1">
-        <div
-          className={cn(
-            "font-semibold transition-colors duration-300",
-            isActive ? "text-ink-50" : "text-ink-300",
-          )}
-        >
+      {/* Step card — always full opacity. Gets a subtle violet border
+          tint once the user scrolls past it, but never dims. */}
+      <motion.div
+        animate={{
+          borderColor: reached
+            ? "rgba(167, 139, 250, 0.20)"
+            : "rgba(255, 255, 255, 0.06)",
+        }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="rounded-2xl border bg-ink-900/40 p-5"
+      >
+        <div className="font-semibold text-ink-50 text-[15px]">
           {step.title}
         </div>
         <div className="mt-1.5 text-[13.5px] text-ink-400 leading-relaxed">
           {step.body}
         </div>
-      </div>
-    </motion.li>
+      </motion.div>
+    </li>
   );
 }
 
