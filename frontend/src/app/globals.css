@@ -35,27 +35,25 @@ body {
   background-color: #09090B;
 }
 
-/* Canvas wrapper: limit the shader to roughly the upper 70vh of the
-   viewport so the bottom isn't covered. The canvas itself is sized 100%
-   inside this box. */
+/* Canvas wrapper covers the full viewport so the shader is visible
+   everywhere it isn't actively masked by the fade. */
 .aurora-canvas-wrap {
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 75vh;
+  inset: 0;
 }
 
-/* Linear fade. Sits over the entire viewport and gradually opaques to
-   the page background, killing the shader's bottom edge and keeping the
-   lower half of any page reliably dark. */
+/* Soft fade. Lets the shader bleed visibly through most of the viewport,
+   only pushing toward black at the very bottom so content there stays
+   readable. */
 .aurora-fade {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    transparent 35%,
-    rgba(9, 9, 11, 0.65) 55%,
-    #09090B 78%
+    transparent 60%,
+    rgba(9, 9, 11, 0.55) 80%,
+    rgba(9, 9, 11, 0.92) 100%
   );
 }
 

@@ -35,13 +35,13 @@ function BackgroundAurora() {
     <div className="aurora-layer" aria-hidden>
       <div className="aurora-canvas-wrap">
         <SpectraNoise
-          hueShift={-30}
-          noiseIntensity={0.06}
+          hueShift={-25}
+          noiseIntensity={0.08}
           scanlineIntensity={0}
           scanlineFrequency={0}
-          warpAmount={0.35}
-          speed={0.25}
-          resolutionScale={0.6}
+          warpAmount={0.55}
+          speed={0.55}
+          resolutionScale={0.7}
         />
       </div>
       <div className="aurora-fade" />
