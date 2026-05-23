@@ -29,21 +29,18 @@ export default function RootLayout({
 
 function NavBar() {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-ink-950/80 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-6 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="relative grid place-items-center size-8 rounded-lg bg-brand-500/15 border border-brand-500/30">
-            <Activity className="size-4 text-brand-300 group-hover:text-brand-200 transition" />
-            <span className="absolute -inset-px rounded-lg ring-1 ring-inset ring-brand-500/40 opacity-0 group-hover:opacity-100 transition" />
+          <div className="relative grid place-items-center size-7 rounded-md bg-brand-500/15 border border-brand-500/30">
+            <Activity className="size-3.5 text-brand-300 group-hover:text-brand-200 transition" />
           </div>
-          <div className="leading-tight">
-            <div className="font-semibold tracking-tight text-ink-50">
-              IncidentIQ
-            </div>
-            <div className="text-[10.5px] text-ink-400 -mt-0.5 tracking-wide">
-              AI ROOT CAUSE · FOR SRE
-            </div>
-          </div>
+          <span className="font-semibold tracking-tight text-ink-50 text-[15px]">
+            IncidentIQ
+          </span>
+          <span className="hidden sm:inline-block ml-1 text-[11px] text-ink-500 font-normal">
+            for SRE
+          </span>
         </Link>
 
         <nav className="flex items-center gap-1 text-sm">

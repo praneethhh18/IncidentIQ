@@ -119,20 +119,39 @@ export const api = {
     const decoder = new TextDecoder();
     let buffer = "";
 
+    // Find the next event boundary regardless of CRLF vs LF line endings.
+    // sse-starlette emits "\r\n\r\n" on Windows; the SSE spec also allows "\n\n".
+    const findBoundary = (str: string): { index: number; sep: number } | null => {
+      const lf = str.indexOf("\n\n");
+      const crlf = str.indexOf("\r\n\r\n");
+      if (lf === -1 && crlf === -1) return null;
+      if (lf === -1) return { index: crlf, sep: 4 };
+      if (crlf === -1) return { index: lf, sep: 2 };
+      return lf < crlf ? { index: lf, sep: 2 } : { index: crlf, sep: 4 };
+    };
+
+    const flushBuffer = function* (): Generator<StreamEvent> {
+      let boundary = findBoundary(buffer);
+      while (boundary !== null) {
+        const raw = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary.sep);
+        const parsed = parseSseChunk(raw);
+        if (parsed) yield parsed;
+        boundary = findBoundary(buffer);
+      }
+    };
+
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-
-        let boundary = buffer.indexOf("\n\n");
-        while (boundary !== -1) {
-          const raw = buffer.slice(0, boundary);
-          buffer = buffer.slice(boundary + 2);
-          boundary = buffer.indexOf("\n\n");
-          const parsed = parseSseChunk(raw);
-          if (parsed) yield parsed;
-        }
+        for (const event of flushBuffer()) yield event;
+      }
+      // Flush any trailing event left in the buffer once the stream closes.
+      if (buffer.trim()) {
+        const parsed = parseSseChunk(buffer);
+        if (parsed) yield parsed;
       }
     } finally {
       reader.releaseLock();
@@ -147,11 +166,13 @@ export type StreamEvent =
   | { type: "error"; message: string };
 
 function parseSseChunk(raw: string): StreamEvent | null {
-  const lines = raw.split("\n");
+  // Split on either CRLF or LF; trim each line of stray \r.
+  const lines = raw.split(/\r?\n/);
   let dataPayload = "";
   for (const line of lines) {
-    if (line.startsWith("data:")) {
-      dataPayload += line.slice(5).trim();
+    const clean = line.replace(/\r$/, "");
+    if (clean.startsWith("data:")) {
+      dataPayload += clean.slice(5).trim();
     }
   }
   if (!dataPayload) return null;

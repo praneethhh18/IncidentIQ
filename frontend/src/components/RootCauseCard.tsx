@@ -7,9 +7,7 @@ export function RootCauseCard({ analysis }: { analysis: AnalyzeResponse }) {
     <div className="card-pad space-y-4">
       <div className="flex items-center gap-2">
         <Brain className="size-4 text-brand-300" />
-        <h3 className="text-sm font-semibold tracking-wide text-ink-50 uppercase">
-          Root cause
-        </h3>
+        <h3 className="section-title text-ink-100">Root cause</h3>
       </div>
 
       <p className="text-[15px] text-ink-100 leading-relaxed">

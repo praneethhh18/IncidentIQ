@@ -161,7 +161,7 @@ export function AnalysisResult({
         <div className="grid lg:grid-cols-2 gap-5">
           <RootCauseCard analysis={analysis} />
           <div className="card-pad">
-            <h3 className="text-sm font-semibold tracking-wide text-ink-50 uppercase mb-3">
+            <h3 className="section-title mb-3">
               Affected services
             </h3>
             <ServiceGraph services={analysis.affected_services} />
@@ -184,13 +184,13 @@ export function AnalysisResult({
       <FadeItem>
         <div className="grid lg:grid-cols-[1.1fr,1fr] gap-5">
           <div className="card-pad">
-            <h3 className="text-sm font-semibold tracking-wide text-ink-50 uppercase mb-4">
+            <h3 className="section-title mb-4">
               Incident timeline
             </h3>
             <IncidentTimeline events={analysis.timeline} />
           </div>
           <div className="card-pad">
-            <h3 className="text-sm font-semibold tracking-wide text-ink-50 uppercase mb-3">
+            <h3 className="section-title mb-3">
               Fix recommendations
             </h3>
             <FixRecommendations fixes={analysis.fixes} />
@@ -200,7 +200,7 @@ export function AnalysisResult({
 
       <FadeItem>
         <div className="card-pad">
-          <h3 className="text-sm font-semibold tracking-wide text-ink-50 uppercase mb-3">
+          <h3 className="section-title mb-3">
             Supporting evidence
           </h3>
           <EvidenceList lines={analysis.evidence} />
@@ -212,7 +212,7 @@ export function AnalysisResult({
           <div className="card-pad">
             <div className="flex items-center gap-2 mb-1">
               <Bot className="size-4 text-brand-300" />
-              <h3 className="text-sm font-semibold tracking-wide text-ink-50 uppercase">
+              <h3 className="section-title">
                 Agent reasoning trail
               </h3>
               <span className="chip ml-auto">

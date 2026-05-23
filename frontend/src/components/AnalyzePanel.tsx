@@ -111,18 +111,37 @@ export function AnalyzePanel({
       }
 
       let final: AnalyzeResponse | null = null;
-      for await (const event of api.analyzeStream(body, controller.signal)) {
-        if (event.type === "agent_step") {
-          setLiveSteps((prev) => [...prev, event.step]);
-        } else if (event.type === "phase") {
-          setLivePhase(event.message || event.phase);
-        } else if (event.type === "complete") {
-          final = event.analysis;
-        } else if (event.type === "error") {
-          throw new Error(event.message);
+      let streamFailed = false;
+
+      try {
+        for await (const event of api.analyzeStream(body, controller.signal)) {
+          if (event.type === "agent_step") {
+            setLiveSteps((prev) => [...prev, event.step]);
+          } else if (event.type === "phase") {
+            setLivePhase(event.message || event.phase);
+          } else if (event.type === "complete") {
+            final = event.analysis;
+          } else if (event.type === "error") {
+            throw new Error(event.message);
+          }
         }
+      } catch (streamErr) {
+        if ((streamErr as Error).name === "AbortError") throw streamErr;
+        console.warn("Stream failed, falling back to /analyze:", streamErr);
+        streamFailed = true;
       }
-      if (final) setResult(final);
+
+      // Safety net: if the stream never delivered a complete event, fall
+      // back to the synchronous /analyze endpoint so the result still renders.
+      if (!final) {
+        if (!streamFailed) {
+          console.warn("Stream finished without complete event, falling back");
+        }
+        setLivePhase("Finalising analysis…");
+        final = await api.analyze(body);
+      }
+
+      setResult(final);
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setError(err instanceof Error ? err.message : String(err));
@@ -326,17 +345,17 @@ export function AnalyzePanel({
       </div>
 
       <div ref={resultRef}>
-        {loading || liveSteps.length > 0 ? (
+        {loading ? (
           <LiveAgentPanel
             steps={liveSteps}
             phase={livePhase}
-            done={!loading && result !== null}
+            done={false}
           />
         ) : null}
         {!loading && result ? (
           <AnalysisResult
             analysis={result}
-            showAgentTrail={false}
+            showAgentTrail={true}
             rawLogs={logs}
           />
         ) : null}

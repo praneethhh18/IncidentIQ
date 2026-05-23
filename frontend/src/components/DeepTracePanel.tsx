@@ -85,7 +85,7 @@ const ROLE_META: Record<
 
 export function DeepTracePanel({ report }: { report: DeepTraceReport }) {
   return (
-    <section className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-red-500/[0.05] via-ink-900/90 to-amber-500/[0.04] overflow-hidden">
+    <section className="rounded-2xl border border-amber-500/20 bg-ink-900/40 overflow-hidden">
       <header className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3 flex-wrap">
         <div className="size-10 grid place-items-center rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300">
           <Telescope className="size-5" />

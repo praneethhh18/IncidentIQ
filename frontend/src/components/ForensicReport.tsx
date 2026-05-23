@@ -37,7 +37,7 @@ const KIND_ICON: Record<string, typeof Server> = {
 
 export function ForensicReport({ forensic }: { forensic: ForensicReportType }) {
   return (
-    <section className="rounded-2xl border border-brand-500/20 bg-gradient-to-br from-brand-500/[0.06] via-ink-900/80 to-ink-950 overflow-hidden">
+    <section className="rounded-2xl border border-brand-500/15 bg-ink-900/40 overflow-hidden">
       <header className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06]">
         <div className="size-9 grid place-items-center rounded-xl bg-brand-500/15 border border-brand-500/30 text-brand-300">
           <Microscope className="size-4" />
