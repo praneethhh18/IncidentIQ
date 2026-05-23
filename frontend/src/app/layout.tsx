@@ -32,8 +32,6 @@ function BackgroundAurora() {
   return (
     <div className="aurora-layer" aria-hidden>
       <div className="aurora-blob aurora-blob-1" />
-      <div className="aurora-blob aurora-blob-2" />
-      <div className="aurora-blob aurora-blob-3" />
     </div>
   );
 }

@@ -21,11 +21,10 @@ body {
 }
 
 /* ─── Drifting aurora background ──────────────────────────────────────────
-   Three blurred white blobs that translate slowly on independent loops.
-   Designed to be unconsciously felt, not consciously watched. Pure CSS,
-   no JS. Each loop is intentionally long (22 - 28s) and uses ease-in-out
-   so reversals feel organic. Respects prefers-reduced-motion via the
-   global rule further down.
+   ONE soft glow from the top that drifts gently side-to-side. Same shape
+   as the static radial gradient that was there before, but breathing.
+   Heavy blur + low opacity + huge size so it never reads as a "shape",
+   only as the page subtly lightening near the top.
 */
 .aurora-layer {
   position: fixed;
@@ -38,45 +37,26 @@ body {
 .aurora-blob {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(80px);
-  will-change: transform, opacity;
+  filter: blur(140px);
+  will-change: transform;
 }
 .aurora-blob-1 {
-  top: -18%;
-  left: 8%;
-  width: 60vw;
-  height: 60vh;
-  background: rgba(255, 255, 255, 0.05);
-  animation: aurora-drift-1 22s ease-in-out infinite;
-}
-.aurora-blob-2 {
-  top: 38%;
-  right: -12%;
-  width: 55vw;
-  height: 55vh;
-  background: rgba(255, 255, 255, 0.035);
-  animation: aurora-drift-2 26s ease-in-out infinite;
-}
-.aurora-blob-3 {
-  bottom: -22%;
-  left: 28%;
-  width: 58vw;
-  height: 58vh;
-  background: rgba(255, 255, 255, 0.025);
-  animation: aurora-drift-3 28s ease-in-out infinite;
+  top: -55%;
+  left: -10%;
+  width: 120vw;
+  height: 120vh;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.045) 0%,
+    rgba(255, 255, 255, 0.018) 35%,
+    transparent 65%
+  );
+  animation: aurora-drift 32s ease-in-out infinite;
 }
 
-@keyframes aurora-drift-1 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(8vw, 6vh, 0) scale(1.08); }
-}
-@keyframes aurora-drift-2 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(-10vw, -4vh, 0) scale(1.12); }
-}
-@keyframes aurora-drift-3 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50%      { transform: translate3d(6vw, -8vh, 0) scale(1.06); }
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(-3vw, 0, 0) scale(1); }
+  50%      { transform: translate3d(3vw, 2vh, 0) scale(1.04); }
 }
 
 /* Make all stat-like numbers render with proportional spacing */
