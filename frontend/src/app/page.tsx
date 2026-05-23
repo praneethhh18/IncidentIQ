@@ -499,12 +499,70 @@ function Features() {
 }
 
 
+// Three step cards. Each has an accent palette that gets used for its
+// number badge, ambient inner glow, and border tint. The colors progress
+// neutral -> violet -> emerald to suggest "raw input -> active analysis
+// -> finished result".
+const STEP_PANELS = [
+  {
+    n: "01",
+    eyebrow: "Connect",
+    title: "Hook into your stack, or just paste.",
+    body: "**Wire up** Datadog, Grafana, or New Relic with an API key. Or skip the integrations entirely: **paste raw logs**, **drop a file**, or fire a PagerDuty webhook. Works either way.",
+    accent: "neutral" as const,
+  },
+  {
+    n: "02",
+    eyebrow: "Analyze",
+    title: "Eight investigation tools, one structured verdict.",
+    body: "The agent inventories services, correlates the timeline, traces back to **patient zero**, computes the **blast radius**, and hypothesizes the trigger. Then **Nova Pro** synthesizes a single coherent analysis with quoted evidence.",
+    accent: "violet" as const,
+  },
+  {
+    n: "03",
+    eyebrow: "Triage",
+    title: "Root cause and a fix, in under ten seconds.",
+    body: "**Root cause** with confidence. A reconstructed **timeline** of the cascade. A severity verdict with reasoning. **Ranked fixes** with copy-paste snippets. A **post mortem PDF** ready for Confluence.",
+    accent: "emerald" as const,
+  },
+];
+
+const ACCENT_STYLES: Record<
+  "neutral" | "violet" | "emerald",
+  {
+    badge: string;
+    badgeRing: string;
+    glow: string;
+    eyebrow: string;
+  }
+> = {
+  neutral: {
+    badge: "bg-ink-950 text-ink-100 border-white/[0.12]",
+    badgeRing: "ring-white/[0.10]",
+    glow:
+      "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 255, 255, 0.05), transparent 70%)",
+    eyebrow: "text-ink-300",
+  },
+  violet: {
+    badge: "bg-ink-950 text-violet-100 border-violet-400/40",
+    badgeRing: "ring-violet-500/20",
+    glow:
+      "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(139, 92, 246, 0.18), transparent 70%)",
+    eyebrow: "text-violet-300",
+  },
+  emerald: {
+    badge: "bg-ink-950 text-emerald-100 border-emerald-400/40",
+    badgeRing: "ring-emerald-500/20",
+    glow:
+      "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(16, 185, 129, 0.15), transparent 70%)",
+    eyebrow: "text-emerald-300",
+  },
+};
+
 function HowItWorks() {
   return (
     <section className="border-t border-white/[0.05] bg-ink-950/60">
       <div className="mx-auto max-w-5xl px-6 py-32">
-        {/* Eyebrow + tight subhead. Stays compact so the focus stays on
-            the revealing panel below. */}
         <div className="text-center max-w-xl mx-auto">
           <div className="chip">How it works</div>
           <h2 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-ink-50">
@@ -512,31 +570,76 @@ function HowItWorks() {
           </h2>
         </div>
 
-        {/* Reveal panel. A single contained card that holds the entire
-            scroll narration. Overflow is hidden so nothing escapes the
-            rounded border, and max-w is on the outer wrapper so the
-            inside text doesn't run beyond comfortable reading width. */}
-        <div className="mt-14 mx-auto rounded-3xl border border-white/[0.06] bg-ink-900/30 backdrop-blur-sm overflow-hidden">
-          <div className="px-8 md:px-14 py-16 md:py-20">
-            <ScrollRevealText className="text-2xl md:text-[28px] font-semibold tracking-tight text-ink-50 leading-[1.45]">
-              {`
-                **01.** First, **connect** Datadog, Grafana, or New Relic.
-                Or paste raw logs and drop a file. **Works either way.**
+        {/* Sequential step cards. Each is its own self-contained box with
+            min-height so it owns a real chunk of scroll. As you scroll
+            past one, the next animates in. */}
+        <div className="mt-14 space-y-6">
+          {STEP_PANELS.map((step) => (
+            <StepPanel key={step.n} step={step} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-                **02.** The agent runs **eight investigation tools**
-                across the telemetry, then synthesises a structured
-                analysis with quoted evidence.
+function StepPanel({ step }: { step: (typeof STEP_PANELS)[number] }) {
+  const accent = ACCENT_STYLES[step.accent];
 
-                **03.** In **under ten seconds**, you get the root cause,
-                a reconstructed timeline, a severity verdict, ranked
-                fixes with copy-paste snippets, and a polished
-                **post mortem PDF** ready to share.
-              `}
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: false, amount: 0.4 }}
+      transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+      className="relative rounded-3xl border border-white/[0.06] bg-ink-900/40 backdrop-blur-sm overflow-hidden"
+    >
+      {/* Accent glow inside the panel, contained by overflow-hidden so
+          it can never leak past the border radius. */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ backgroundImage: accent.glow }}
+      />
+
+      <div className="relative grid md:grid-cols-[auto,1fr] gap-6 md:gap-10 p-7 md:p-10">
+        {/* Number badge */}
+        <div className="flex md:flex-col items-start gap-3">
+          <span
+            className={cn(
+              "grid place-items-center size-14 rounded-full font-mono tabular-nums text-base border ring-4",
+              accent.badge,
+              accent.badgeRing,
+            )}
+          >
+            {step.n}
+          </span>
+          <span
+            className={cn(
+              "text-[10.5px] uppercase tracking-[0.22em] font-semibold mt-2",
+              accent.eyebrow,
+            )}
+          >
+            {step.eyebrow}
+          </span>
+        </div>
+
+        {/* Title + body */}
+        <div className="min-w-0">
+          <h3 className="text-[22px] md:text-[26px] font-semibold tracking-tight text-ink-50 leading-snug">
+            {step.title}
+          </h3>
+          <div className="mt-3 text-[15px] md:text-[16px] text-ink-300 leading-relaxed">
+            <ScrollRevealText
+              dim={0.22}
+              spread={0.9}
+              emphasisClassName="text-ink-50 font-medium"
+            >
+              {step.body}
             </ScrollRevealText>
           </div>
         </div>
       </div>
-    </section>
+    </motion.div>
   );
 }
 
