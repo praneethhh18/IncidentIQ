@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-ink-100 antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 10% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
+    radial-gradient(900px 500px at 110% -20%, rgba(34, 211, 238, 0.10), transparent 65%),
+    linear-gradient(180deg, #020617 0%, #0B1224 100%);
+  background-attachment: fixed;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Subtle grid backdrop for hero/landing sections */
+.bg-dots {
+  background-image:
+    radial-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* Glass-style card */
+.card {
+  @apply rounded-2xl border border-white/[0.06] bg-ink-900/60 backdrop-blur-sm shadow-card;
+}
+
+.card-pad {
+  @apply card p-5;
+}
+
+/* Form controls */
+.input {
+  @apply w-full rounded-xl bg-ink-950/60 border border-white/[0.08] px-3 py-2 text-sm
+         text-ink-100 placeholder:text-ink-500 outline-none
+         focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/20 transition;
+}
+
+.textarea {
+  @apply input min-h-[10rem] font-mono text-[12.5px] leading-snug;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
+         transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+}
+
+.btn-primary {
+  @apply btn bg-brand-500 text-white shadow-glow hover:bg-brand-400;
+}
+
+.btn-secondary {
+  @apply btn bg-white/[0.05] text-ink-100 border border-white/[0.08] hover:bg-white/[0.08];
+}
+
+.btn-ghost {
+  @apply btn text-ink-300 hover:text-ink-100 hover:bg-white/[0.05];
+}
+
+.chip {
+  @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium
+         bg-white/[0.06] text-ink-300 border border-white/[0.06];
+}
+
+/* Severity dot */
+.sev-dot {
+  @apply inline-block size-2 rounded-full;
+}
+.sev-dot-p1 { @apply bg-sev-p1 shadow-[0_0_10px] shadow-sev-p1/60; }
+.sev-dot-p2 { @apply bg-sev-p2 shadow-[0_0_10px] shadow-sev-p2/60; }
+.sev-dot-p3 { @apply bg-sev-p3 shadow-[0_0_10px] shadow-sev-p3/60; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.18); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.28); }
+
+/* Shimmer skeleton */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  @apply animate-shimmer rounded-md;
+}
