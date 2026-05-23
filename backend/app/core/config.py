@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Slack webhook for auto-posting analyses (optional)
     slack_webhook_url: str | None = None
 
+    # SendGrid for resolution emails (optional)
+    sendgrid_api_key: str | None = None
+    sendgrid_from_email: str = "incidentiq@example.com"
+    notify_email: str | None = None
+
     # Server — store as raw string and expose parsed list via property so
     # pydantic-settings doesn't try to JSON-decode comma-separated input
     # from .env files.
@@ -87,6 +92,10 @@ class Settings(BaseSettings):
     @property
     def slack_enabled(self) -> bool:
         return bool(self.slack_webhook_url)
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.sendgrid_api_key and self.notify_email)
 
 
 @lru_cache(maxsize=1)

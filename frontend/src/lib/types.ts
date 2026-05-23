@@ -108,6 +108,12 @@ export interface DeepTraceReport {
   revised_confidence: number;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant" | string;
+  content: string;
+  timestamp: string;
+}
+
 export interface WhyStep {
   n: number;
   question: string;
@@ -143,6 +149,12 @@ export interface AnalyzeResponse {
   deep_trace: DeepTraceReport | null;
   should_escalate: boolean;
   escalation_reason: string;
+  status: "open" | "investigating" | "recovering" | "resolved" | string;
+  resolved_at: string | null;
+  last_checked_at: string | null;
+  recheck_count: number;
+  resolution_summary: string;
+  chat_history: ChatMessage[];
 }
 
 export interface IncidentSummary {

@@ -8,6 +8,7 @@ import type {
   AgentStep,
   AnalyzeRequest,
   AnalyzeResponse,
+  ChatMessage,
   IncidentSummary,
   IntegrationStatus,
   SampleIncident,
@@ -85,6 +86,28 @@ export const api = {
     request<AnalyzeResponse>(`/api/v1/incidents/${incidentId}/deep-trace`, {
       method: "POST",
       json: { logs, reason },
+    }),
+
+  chat: (incidentId: string, message: string) =>
+    request<{ reply: ChatMessage; history: ChatMessage[] }>(
+      `/api/v1/incidents/${incidentId}/chat`,
+      { method: "POST", json: { message } },
+    ),
+
+  recheck: (incidentId: string, logs?: string) =>
+    request<{
+      incident: AnalyzeResponse;
+      outcome_status: "resolved" | "recovering" | "still_active" | string;
+      outcome_summary: string;
+      matched_signals: string[];
+      email_sent: boolean;
+    }>(`/api/v1/incidents/${incidentId}/recheck`, {
+      method: "POST",
+      json: {
+        logs,
+        dashboard_base_url:
+          typeof window !== "undefined" ? window.location.origin : "",
+      },
     }),
 
   /**

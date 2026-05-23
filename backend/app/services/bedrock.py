@@ -57,6 +57,43 @@ class BedrockClient:
     def model_id(self) -> str:
         return self._settings.bedrock_model_id
 
+    def chat(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Dict[str, str]],
+        max_tokens: int = 1024,
+        temperature: float = 0.4,
+    ) -> str:
+        """Multi-turn conversational call.
+
+        ``messages`` is a list of ``{"role": "user"|"assistant", "content": str}``
+        dicts in chronological order. Returns the assistant's plain-text reply.
+        """
+        if self._client is None:
+            raise BedrockUnavailable("Bedrock client is not configured")
+
+        converse_messages = [
+            {"role": m["role"], "content": [{"text": m["content"]}]} for m in messages
+        ]
+
+        try:
+            response = self._client.converse(
+                modelId=self._settings.bedrock_model_id,
+                system=[{"text": system_prompt}],
+                messages=converse_messages,
+                inferenceConfig={
+                    "maxTokens": max_tokens,
+                    "temperature": temperature,
+                    "topP": 0.9,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Bedrock chat call failed")
+            raise BedrockUnavailable(str(exc)) from exc
+
+        return _extract_text(response).strip()
+
     def converse_json(
         self,
         *,

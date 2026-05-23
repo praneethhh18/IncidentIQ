@@ -25,6 +25,8 @@ import { EvidenceList } from "./EvidenceList";
 import { FiveWhysCard } from "./FiveWhysCard";
 import { FixRecommendations } from "./FixRecommendations";
 import { ForensicReport } from "./ForensicReport";
+import { IncidentChat } from "./IncidentChat";
+import { IncidentRecheck } from "./IncidentRecheck";
 import { IncidentTimeline } from "./IncidentTimeline";
 import { BannerReveal, FadeItem, StaggerList } from "./motion-primitives";
 import { RootCauseCard } from "./RootCauseCard";
@@ -156,6 +158,10 @@ export function AnalysisResult({
         </BannerReveal>
       ) : null}
 
+      <FadeItem variant="cardRise">
+        <IncidentRecheck initial={analysis} rawLogs={rawLogs} />
+      </FadeItem>
+
       {analysis.business_impact ? (
         <FadeItem variant="cardRise">
           <BusinessImpactCard impact={analysis.business_impact} />
@@ -210,6 +216,13 @@ export function AnalysisResult({
           </h3>
           <EvidenceList lines={analysis.evidence} />
         </div>
+      </FadeItem>
+
+      <FadeItem variant="cardRise">
+        <IncidentChat
+          incidentId={analysis.incident_id}
+          initialHistory={analysis.chat_history ?? []}
+        />
       </FadeItem>
 
       {showAgentTrail && analysis.agent_steps && analysis.agent_steps.length > 0 ? (

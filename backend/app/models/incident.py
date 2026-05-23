@@ -147,6 +147,14 @@ class DeepTraceReport(BaseModel):
     )
 
 
+class ChatMessage(BaseModel):
+    """A single turn in the follow-up chat attached to an analysis."""
+
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class WhyStep(BaseModel):
     """One step in the 5 Whys postmortem ladder."""
 
@@ -297,6 +305,22 @@ class AnalyzeResponse(BaseModel):
     escalation_reason: str = Field(
         default="",
         description="Human-readable explanation of why Deep Trace is recommended.",
+    )
+    # ── Lifecycle: status, rechecks, chat ──────────────────────────────
+    status: str = Field(
+        default="open",
+        description="Lifecycle status: open | investigating | recovering | resolved",
+    )
+    resolved_at: datetime | None = Field(default=None)
+    last_checked_at: datetime | None = Field(default=None)
+    recheck_count: int = Field(default=0)
+    resolution_summary: str = Field(
+        default="",
+        description="Short note explaining what changed when the incident was resolved.",
+    )
+    chat_history: List[ChatMessage] = Field(
+        default_factory=list,
+        description="Follow-up Q&A between the user and the agent about this incident.",
     )
 
 
