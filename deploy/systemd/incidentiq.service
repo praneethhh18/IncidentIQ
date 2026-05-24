@@ -1,0 +1,53 @@
+[Unit]
+Description=IncidentIQ FastAPI backend (uvicorn)
+Documentation=https://github.com/praneethhh18/IncidentIQ-AI-Incident-Root-Cause-Analyzer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/incidentiq/backend
+
+# All secrets (AWS keys, Datadog keys, GitHub OAuth secret, etc.) live
+# in this file. The deploy bootstrap copies an example version; the
+# operator fills in real values before the first systemctl start.
+EnvironmentFile=/opt/incidentiq/backend/.env
+
+# Bind to loopback only - nginx fronts us on :443. Two workers because
+# Bedrock calls are I/O-bound and we want one to keep serving while
+# another is mid-Converse-API call.
+ExecStart=/opt/incidentiq/backend/.venv/bin/uvicorn \
+    app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --proxy-headers \
+    --forwarded-allow-ips=127.0.0.1 \
+    --log-level info \
+    --access-log
+
+# Restart on crash but not so aggressively that a broken deploy
+# hot-loops forever - systemd will give up after 5 attempts in 60s
+# and we'll see it in the GH Actions health check.
+Restart=on-failure
+RestartSec=3s
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+# Reasonable hardening - the process doesn't need to write outside its
+# workdir or read user home dirs.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+# Don't kill in-flight requests instantly on stop / restart.
+KillSignal=SIGINT
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=multi-user.target
