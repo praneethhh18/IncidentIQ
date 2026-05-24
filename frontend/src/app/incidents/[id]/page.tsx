@@ -1,30 +1,111 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ArrowLeft, Hash, Clock, History as HistoryIcon } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Hash,
+  Clock,
+  History as HistoryIcon,
+  Loader2,
+} from "lucide-react";
 
 import { api, ApiError } from "@/lib/api";
+import type { AnalyzeResponse } from "@/lib/types";
 import { AnalysisResult } from "@/components/AnalysisResult";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { formatDateTime } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+/**
+ * Incident detail page. Renders client-side so the fetch carries the
+ * X-IIQ-User header from localStorage - the backend then matches the
+ * row's owner to the caller, which is what gives the per-user history
+ * isolation. Server rendering would skip the header and fall through to
+ * the anonymous shared-pool branch, breaking actions like Deep Trace
+ * and Code Fix that the rest of the page hosts.
+ */
+export default function IncidentDetail() {
+  const params = useParams();
+  const router = useRouter();
+  const id = String(params?.id ?? "");
 
-export default async function IncidentDetail({
-  params,
-}: {
-  params: { id: string };
-}) {
-  let analysis;
-  try {
-    analysis = await api.incident(params.id);
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) notFound();
-    throw err;
+  const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null);
+  const [status, setStatus] = useState<"loading" | "missing" | "error">(
+    "loading",
+  );
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.incident(id);
+        if (!cancelled) {
+          setAnalysis(result);
+          setStatus("loading");
+        }
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) {
+          setStatus("missing");
+        } else {
+          setStatus("error");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (!analysis) {
+    return (
+      <section className="mx-auto max-w-7xl px-6 py-20 text-center">
+        {status === "loading" ? (
+          <>
+            <Loader2 className="size-6 mx-auto text-ink-400 animate-spin" />
+            <div className="mt-3 text-ink-300 text-sm">
+              Loading incident…
+            </div>
+          </>
+        ) : status === "missing" ? (
+          <>
+            <div className="text-ink-200 font-medium">Incident not found</div>
+            <div className="mt-1 text-sm text-ink-500 max-w-md mx-auto">
+              This incident may belong to a different account, or it was
+              created before the per-user store was migrated. Try opening
+              one from your own history.
+            </div>
+            <Link
+              href="/incidents"
+              className="btn-primary mt-5 inline-flex px-4 py-2 text-[13.5px]"
+            >
+              <ArrowLeft className="size-3.5" />
+              Back to history
+            </Link>
+          </>
+        ) : (
+          <>
+            <div className="text-ink-200 font-medium">Couldn&apos;t load incident</div>
+            <div className="mt-1 text-sm text-ink-500 max-w-md mx-auto">
+              The backend returned an error. Refresh the page or go back to
+              history.
+            </div>
+            <button
+              onClick={() => router.refresh()}
+              className="btn-secondary mt-5 px-4 py-2 text-[13.5px]"
+            >
+              Refresh
+            </button>
+          </>
+        )}
+      </section>
+    );
   }
 
   return (
     <section className="mx-auto max-w-7xl px-6 py-8">
-      {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-[12px] text-ink-400 font-medium">
         <Link href="/" className="hover:text-ink-50 transition">
           IncidentIQ
@@ -37,8 +118,6 @@ export default async function IncidentDetail({
         <span className="text-ink-200 font-mono">{analysis.incident_id}</span>
       </nav>
 
-      {/* Detail-page header. This is the visible signal that you've
-          navigated into a specific incident. */}
       <header className="mt-4 mb-7 grid md:grid-cols-[1fr,auto] gap-4 items-start">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -67,17 +146,12 @@ export default async function IncidentDetail({
         </Link>
       </header>
 
-      {/* Full analysis. showAgentTrail=true here since we want the
-          permanent record to include the reasoning trail. Hide the
-          'Open detail' link because we are already on the detail page. */}
       <AnalysisResult
         analysis={analysis}
         showAgentTrail={true}
         showOpenDetail={false}
       />
 
-      {/* Footer link back to history so long pages don't trap the user
-          at the bottom. */}
       <div className="mt-10 pt-6 border-t border-white/[0.06] flex items-center justify-between text-[12.5px]">
         <Link
           href="/incidents"

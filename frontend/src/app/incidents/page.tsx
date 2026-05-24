@@ -1,15 +1,40 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, History, Inbox } from "lucide-react";
+import { ArrowRight, History, Inbox, Loader2 } from "lucide-react";
 
 import { api } from "@/lib/api";
 import type { IncidentSummary } from "@/lib/types";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { formatRelative } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+/**
+ * History page lists incidents owned by the signed-in user. We render
+ * client-side so the request carries the X-IIQ-User header from
+ * localStorage - server-side rendering would have no access to that
+ * header and the backend would fall through to the anonymous "shared
+ * pool" branch, leaking legacy NULL-owner rows into every visitor's
+ * history. (That was the original cross-user leak we hit just before
+ * the demo.)
+ */
+export default function IncidentsPage() {
+  const [incidents, setIncidents] = useState<IncidentSummary[] | null>(null);
 
-export default async function IncidentsPage() {
-  const incidents = await api.recent(50).catch<IncidentSummary[]>(() => []);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await api.recent(50);
+        if (!cancelled) setIncidents(rows);
+      } catch {
+        if (!cancelled) setIncidents([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-10">
@@ -22,7 +47,7 @@ export default async function IncidentsPage() {
             Recent incidents
           </h1>
           <p className="mt-2 text-ink-300">
-            Every analysis run on this server, newest first.
+            Every analysis you've run, newest first.
           </p>
         </div>
         <Link href="/dashboard" className="btn-primary px-4 py-2 text-[13.5px]">
@@ -30,7 +55,13 @@ export default async function IncidentsPage() {
         </Link>
       </header>
 
-      {incidents.length === 0 ? <EmptyState /> : <IncidentList incidents={incidents} />}
+      {incidents === null ? (
+        <LoadingState />
+      ) : incidents.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <IncidentList incidents={incidents} />
+      )}
     </section>
   );
 }
@@ -66,6 +97,15 @@ function IncidentList({ incidents }: { incidents: IncidentSummary[] }) {
           <ArrowRight className="size-4 text-ink-500 mt-1.5" />
         </Link>
       ))}
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="card-pad text-center py-20">
+      <Loader2 className="size-6 mx-auto text-ink-400 animate-spin" />
+      <div className="mt-3 text-ink-300 text-sm">Loading your incidents…</div>
     </div>
   );
 }
