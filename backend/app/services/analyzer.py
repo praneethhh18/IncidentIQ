@@ -19,7 +19,7 @@ from app.services.agent import IncidentAgent
 from app.services.bedrock import BedrockClient, BedrockUnavailable
 from app.services.deep_trace import should_escalate as _should_escalate
 from app.services.demo_data import fallback_analysis
-from app.services.impact import build_business_impact, build_five_whys
+from app.services.impact import build_five_whys
 from app.services.integrations import IntegrationRegistry
 
 logger = logging.getLogger(__name__)
@@ -109,11 +109,9 @@ class Analyzer:
 
         yield {
             "event": "phase",
-            "phase": "impact",
-            "message": "Quantifying business impact and generating 5 Whys…",
+            "phase": "five-whys",
+            "message": "Generating 5 Whys postmortem…",
         }
-        if result.business_impact is None:
-            result.business_impact = build_business_impact(result)
         if result.five_whys is None:
             result.five_whys = build_five_whys(result)
 
@@ -162,11 +160,9 @@ class Analyzer:
         # Phase 3 — self-check and stitch the audit trail onto the response.
         result = self._agent.audit_and_annotate(trail, agent_context, result)
 
-        # Phase 4 — derive business impact + 5 Whys from the structured analysis.
-        # These run regardless of whether Bedrock supplied them, so the dashboard
+        # Phase 4 — derive the 5 Whys postmortem from the structured analysis.
+        # Runs regardless of whether Bedrock supplied one, so the dashboard
         # always has the full picture.
-        if result.business_impact is None:
-            result.business_impact = build_business_impact(result)
         if result.five_whys is None:
             result.five_whys = build_five_whys(result)
 

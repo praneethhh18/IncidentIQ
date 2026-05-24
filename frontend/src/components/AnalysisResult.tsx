@@ -18,7 +18,6 @@ import type { AnalyzeResponse } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
 import { AgentTrail } from "./AgentTrail";
-import { BusinessImpactCard } from "./BusinessImpactCard";
 import { DeepTraceBanner } from "./DeepTraceBanner";
 import { DeepTracePanel } from "./DeepTracePanel";
 import { EvidenceList } from "./EvidenceList";
@@ -162,11 +161,6 @@ export function AnalysisResult({
         <IncidentRecheck initial={analysis} rawLogs={rawLogs} />
       </FadeItem>
 
-      {analysis.business_impact ? (
-        <FadeItem variant="cardRise">
-          <BusinessImpactCard impact={analysis.business_impact} />
-        </FadeItem>
-      ) : null}
 
       <FadeItem>
         <div className="grid lg:grid-cols-2 gap-5">

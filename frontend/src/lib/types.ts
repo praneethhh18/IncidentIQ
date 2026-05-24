@@ -58,18 +58,6 @@ export interface ForensicReport {
   minutes_to_detection: number | null;
 }
 
-export interface BusinessImpact {
-  affected_users_estimate: number;
-  affected_users_label: string;
-  revenue_at_risk_usd: number;
-  revenue_basis: string;
-  sla_breached: boolean;
-  sla_detail: string;
-  estimated_mttr_minutes: number;
-  customer_communication_required: boolean;
-  user_segments: string[];
-}
-
 export interface HiddenSignal {
   category:
     | "silent_failure"
@@ -144,7 +132,6 @@ export interface AnalyzeResponse {
   duration_ms: number;
   agent_steps: AgentStep[];
   forensic: ForensicReport | null;
-  business_impact: BusinessImpact | null;
   five_whys: FiveWhys | null;
   deep_trace: DeepTraceReport | null;
   should_escalate: boolean;

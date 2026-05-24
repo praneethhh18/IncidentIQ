@@ -125,44 +125,6 @@ def render_pdf(analysis: AnalyzeResponse) -> bytes:
     )
     story.append(Paragraph(_escape(analysis.severity_rationale), styles["body"]))
 
-    if analysis.business_impact:
-        bi = analysis.business_impact
-        story.append(Paragraph("Business impact", styles["h2"]))
-        sla_text = (
-            f"<font color='#DC2626'><b>SLA BREACHED</b></font> — {_escape(bi.sla_detail)}"
-            if bi.sla_breached
-            else f"<font color='#10B981'><b>Within SLA</b></font> — {_escape(bi.sla_detail)}"
-        )
-        story.append(
-            Paragraph(
-                f"<b>Users affected:</b> {_escape(bi.affected_users_label)} "
-                f"(~{bi.affected_users_estimate:,} estimated)",
-                styles["body"],
-            )
-        )
-        story.append(
-            Paragraph(
-                f"<b>Revenue at risk:</b> ${bi.revenue_at_risk_usd:,} "
-                f"<font color='#475569'>({_escape(bi.revenue_basis)})</font>",
-                styles["body"],
-            )
-        )
-        story.append(
-            Paragraph(
-                f"<b>Estimated MTTR:</b> {bi.estimated_mttr_minutes} minutes",
-                styles["body"],
-            )
-        )
-        story.append(Paragraph(sla_text, styles["body"]))
-        if bi.user_segments:
-            story.append(
-                Paragraph(
-                    "<b>User segments touched:</b> "
-                    + _escape(", ".join(bi.user_segments)),
-                    styles["muted"],
-                )
-            )
-
     if analysis.affected_services:
         story.append(Paragraph("Affected services", styles["h2"]))
         story.append(_services_table(analysis, styles))

@@ -1,10 +1,16 @@
-"""Derive Business Impact and 5 Whys postmortem from an analysis.
+"""Derive the 5 Whys postmortem from an analysis.
 
-These two views are computed locally from the structured analysis the
-LLM already produced. We don't make another LLM call for them - instead
-we use heuristics keyed on severity, affected-service roles, and the
-forensic report. This keeps latency flat and ensures the views are
-present even when running on demo fallback.
+The 5 Whys ladder is computed locally from the structured analysis the
+LLM already produced. We don't make another LLM call for it - instead
+we chain plain-language Qs and As keyed on the root cause, forensic
+trigger, and top fix. This keeps latency flat and ensures the ladder
+is present even when running on demo fallback.
+
+(A previous version of this module also synthesised a 'Business Impact'
+view with affected-users / revenue-at-risk / MTTR estimates. That has
+been removed because the numbers were heuristic - they were derived
+from hard-coded severity dictionaries, not measured data - and showing
+fabricated dollar figures alongside real telemetry was dishonest.)
 """
 
 from __future__ import annotations
@@ -13,111 +19,10 @@ from typing import List
 
 from app.models import (
     AnalyzeResponse,
-    BusinessImpact,
     FiveWhys,
     Severity,
     WhyStep,
 )
-
-
-# ── Business impact ───────────────────────────────────────────────────────
-
-
-_SEVERITY_USER_BASE = {
-    Severity.P1: 12_000,
-    Severity.P2: 2_400,
-    Severity.P3: 400,
-}
-
-_SEVERITY_ARPU_USD = {
-    Severity.P1: 0.85,  # higher-impact flows (checkout etc) skew up
-    Severity.P2: 0.45,
-    Severity.P3: 0.20,
-}
-
-_SEVERITY_MTTR_MIN = {
-    Severity.P1: 35,
-    Severity.P2: 75,
-    Severity.P3: 180,
-}
-
-
-def build_business_impact(analysis: AnalyzeResponse) -> BusinessImpact:
-    """Synthesize business-facing impact metrics from the analysis."""
-    severity = analysis.severity
-    base_users = _SEVERITY_USER_BASE[severity]
-
-    # Service-count multiplier: more affected services = wider impact.
-    service_multiplier = 1.0 + 0.18 * max(0, len(analysis.affected_services) - 1)
-    affected_users = int(base_users * service_multiplier)
-
-    arpu = _SEVERITY_ARPU_USD[severity]
-    # Duration multiplier from the forensic detection time, if available.
-    mttd_minutes = (analysis.forensic.minutes_to_detection if analysis.forensic else None) or 5
-    # Revenue at risk = users * ARPU * (estimated duration in hours)
-    duration_hours = max(0.25, (mttd_minutes + _SEVERITY_MTTR_MIN[severity]) / 60.0)
-    revenue_at_risk = int(affected_users * arpu * duration_hours)
-
-    sla_breached = severity == Severity.P1 or (
-        severity == Severity.P2 and len(analysis.affected_services) >= 3
-    )
-    sla_detail = (
-        "99.9% availability SLA likely breached for the duration of the cascade."
-        if sla_breached
-        else "Within SLA threshold - no customer credits due."
-    )
-
-    user_segments = _infer_user_segments(analysis)
-    label = _format_users(affected_users)
-
-    return BusinessImpact(
-        affected_users_estimate=affected_users,
-        affected_users_label=label,
-        revenue_at_risk_usd=revenue_at_risk,
-        revenue_basis=(
-            f"{label} × ${arpu:.2f} ARPU × {duration_hours:.1f}h "
-            f"(MTTD {mttd_minutes}m + est. MTTR {_SEVERITY_MTTR_MIN[severity]}m)"
-        ),
-        sla_breached=sla_breached,
-        sla_detail=sla_detail,
-        estimated_mttr_minutes=_SEVERITY_MTTR_MIN[severity],
-        customer_communication_required=sla_breached,
-        user_segments=user_segments,
-    )
-
-
-def _format_users(n: int) -> str:
-    if n >= 1_000_000:
-        return f"~{n / 1_000_000:.1f}M users"
-    if n >= 1_000:
-        return f"~{n / 1_000:.1f}k users"
-    return f"~{n} users"
-
-
-def _infer_user_segments(analysis: AnalyzeResponse) -> List[str]:
-    segments: List[str] = []
-    if analysis.forensic:
-        for entity in analysis.forensic.blast_radius:
-            if entity.kind == "user_segment":
-                segments.append(entity.name)
-    # Heuristics from service names
-    service_names = " ".join(s.name.lower() for s in analysis.affected_services)
-    if "checkout" in service_names:
-        segments.append("Checkout-flow users")
-    if "payment" in service_names:
-        segments.append("Paying customers")
-    if "auth" in service_names or "login" in service_names:
-        segments.append("All authenticated users")
-    if "search" in service_names or "recommend" in service_names:
-        segments.append("Browse-mode users")
-    # De-dup while preserving order
-    seen: set[str] = set()
-    deduped: List[str] = []
-    for seg in segments:
-        if seg.lower() not in seen:
-            seen.add(seg.lower())
-            deduped.append(seg)
-    return deduped or ["All active users on affected paths"]
 
 
 # ── 5 Whys ────────────────────────────────────────────────────────────────

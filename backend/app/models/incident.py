@@ -49,45 +49,6 @@ class BlastRadiusEntity(BaseModel):
     severity: Severity | None = Field(default=None)
 
 
-class BusinessImpact(BaseModel):
-    """Quantified business impact of an incident — talks to non-tech stakeholders.
-
-    All fields are estimates derived from the incident severity, affected
-    surface area, and approximate duration. They're directional, not
-    precise — but they translate engineering pain into product / revenue
-    terms a VP can act on.
-    """
-
-    affected_users_estimate: int = Field(
-        ..., description="Approximate number of users hit by the incident."
-    )
-    affected_users_label: str = Field(
-        ..., description="Human-readable size band (e.g. '~12k users', 'enterprise tier only')."
-    )
-    revenue_at_risk_usd: int = Field(
-        ..., description="Estimated revenue at risk in USD over the observed window."
-    )
-    revenue_basis: str = Field(
-        ..., description="Brief explanation of the estimate (e.g. 'ARPU * affected users * duration')."
-    )
-    sla_breached: bool = Field(
-        ..., description="Whether the incident likely breached a customer-facing SLA."
-    )
-    sla_detail: str = Field(
-        ..., description="Specifics — which SLA, by how much, or 'within SLA'."
-    )
-    estimated_mttr_minutes: int = Field(
-        ..., description="Estimated time to full resolution if the top fix is applied now."
-    )
-    customer_communication_required: bool = Field(
-        ..., description="Whether status-page / direct customer comms are warranted."
-    )
-    user_segments: List[str] = Field(
-        default_factory=list,
-        description="Which user segments are affected (e.g. 'checkout-flow users', 'EU region').",
-    )
-
-
 class HiddenSignal(BaseModel):
     """A subtle pattern surfaced by Deep Trace that the regular pass missed.
 
@@ -282,10 +243,6 @@ class AnalyzeResponse(BaseModel):
             "Reverse-engineered view: patient zero, propagation path, blast radius, "
             "and trigger hypothesis. Populated when the agent could trace causality."
         ),
-    )
-    business_impact: BusinessImpact | None = Field(
-        default=None,
-        description="Business-facing impact: users affected, revenue at risk, SLA status, MTTR.",
     )
     five_whys: FiveWhys | None = Field(
         default=None,
