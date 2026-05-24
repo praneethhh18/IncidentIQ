@@ -127,6 +127,7 @@ export interface WatchStatusPayload {
   window_minutes: number;
   error_threshold: number;
   service_filter: string | null;
+  source: "datadog" | "grafana" | "newrelic" | null;
 }
 
 export interface GitHubStatus {

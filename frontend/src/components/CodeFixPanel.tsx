@@ -28,7 +28,10 @@ import type {
 import { cn } from "@/lib/utils";
 import { FadeItem } from "./motion-primitives";
 
-const FALLBACK_REPO = "https://github.com/praneethhh18/FashionAura.git";
+// Empty by default - the input shows a placeholder URL instead. Used
+// to be a hardcoded demo repo which read as "this product is for one
+// app"; now the user pastes (or connects GitHub and picks) any repo.
+const FALLBACK_REPO = "";
 
 const SUB_STEP_ICON: Record<string, typeof Sparkles> = {
   clone: Github,

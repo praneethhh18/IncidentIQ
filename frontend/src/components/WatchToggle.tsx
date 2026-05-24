@@ -24,6 +24,14 @@ import { cn } from "@/lib/utils";
  * the last-polled timestamp tick and the auto-incident counter
  * advance without a page refresh.
  */
+type WatchSource = "datadog" | "grafana" | "newrelic";
+
+const SOURCE_LABELS: Record<WatchSource, string> = {
+  datadog: "Datadog",
+  grafana: "Grafana / Loki",
+  newrelic: "New Relic",
+};
+
 export function WatchToggle({
   onIncidentCreated,
 }: {
@@ -34,6 +42,7 @@ export function WatchToggle({
   const [status, setStatus] = useState<WatchStatusPayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [source, setSource] = useState<WatchSource>("datadog");
   const lastSeenIncidentId = useRef<string | null>(null);
 
   const refresh = async () => {
@@ -71,7 +80,7 @@ export function WatchToggle({
     try {
       const next = status?.running
         ? await api.watchStop()
-        : await api.watchStart({});
+        : await api.watchStart({ source });
       setStatus(next);
       if (next.last_incident_id) {
         lastSeenIncidentId.current = next.last_incident_id;
@@ -134,13 +143,43 @@ export function WatchToggle({
               </>
             ) : (
               <>
-                Polls your connected Datadog account every 60s. When a
-                fresh error cluster appears, IncidentIQ auto-creates an
-                incident — no manual analyze clicks. Connect Datadog
-                under Settings to point it at your own account.
+                Turn this on and IncidentIQ polls your connected
+                monitoring stack every 60s. Whenever a fresh error
+                cluster appears, an incident gets auto-created — no
+                manual analyze clicks. Pick a source below; connect
+                credentials under{" "}
+                <a
+                  href="/settings"
+                  className="text-brand-300 hover:text-brand-200 underline decoration-brand-500/30 underline-offset-2"
+                >
+                  Settings
+                </a>
+                .
               </>
             )}
           </div>
+          {!running ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10.5px] uppercase tracking-wider text-ink-500 font-semibold mr-1">
+                source
+              </span>
+              {(["datadog", "grafana", "newrelic"] as WatchSource[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSource(s)}
+                  className={cn(
+                    "rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition",
+                    source === s
+                      ? "bg-brand-500/15 text-brand-100 border-brand-500/40"
+                      : "bg-white/[0.03] text-ink-300 border-white/[0.07] hover:bg-white/[0.06]",
+                  )}
+                >
+                  {SOURCE_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {error ? (
             <div className="mt-1.5 text-[11.5px] text-red-300">{error}</div>
           ) : null}

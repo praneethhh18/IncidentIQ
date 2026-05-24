@@ -74,6 +74,7 @@ class WatchStatus:
     window_minutes: int = DEFAULT_WINDOW_MINUTES
     error_threshold: int = DEFAULT_ERROR_THRESHOLD
     service_filter: Optional[str] = None
+    source: Optional[SourceKind] = None
     # Most recent fingerprints we've already created incidents for.
     recent_fingerprints: dict[str, float] = field(default_factory=dict)
 
@@ -92,6 +93,11 @@ class WatchService:
         self._store = store
         self._task: Optional[asyncio.Task] = None
         self._status = WatchStatus()
+        # Captured at start() time so the background loop - which runs
+        # outside any request context - can still resolve per-session
+        # credentials on each poll. None means "use .env defaults".
+        self._session_id: Optional[str] = None
+        self._session_store: Optional[object] = None
 
     # ── Public surface ────────────────────────────────────────────────
 
@@ -102,14 +108,23 @@ class WatchService:
     def start(
         self,
         *,
+        source: SourceKind = SourceKind.DATADOG,
         service_filter: Optional[str] = None,
         poll_interval_s: int = DEFAULT_POLL_INTERVAL_S,
         window_minutes: int = DEFAULT_WINDOW_MINUTES,
         error_threshold: int = DEFAULT_ERROR_THRESHOLD,
+        session_id: Optional[str] = None,
+        session_store: Optional[object] = None,
     ) -> WatchStatus:
         if self._task is not None and not self._task.done():
             logger.info("Watch mode already running; returning current status")
             return self._status
+
+        # Capture the session id + store so _poll_once can look up
+        # per-session monitoring credentials. Without them we fall back
+        # to .env-baked credentials, which is fine for self-hosted use.
+        self._session_id = session_id
+        self._session_store = session_store
 
         # Build the next status object but DON'T mutate self._status
         # until create_task succeeds. Previously we set running=True
@@ -123,6 +138,7 @@ class WatchService:
             window_minutes=window_minutes,
             error_threshold=error_threshold,
             service_filter=service_filter,
+            source=source,
         )
         try:
             self._task = asyncio.create_task(
@@ -175,11 +191,13 @@ class WatchService:
     async def _poll_once(self) -> None:
         s = self._status
         s.last_polled_at = datetime.now(timezone.utc)
+        source = s.source or SourceKind.DATADOG
 
         # Build the query based on the user's service filter (if any).
         # Severity range matches what the dashboard's Auto mode uses, so
         # an operator who flips Watch on sees the same line count they'd
-        # see clicking Analyze manually.
+        # see clicking Analyze manually. Datadog dialect is used here -
+        # the integration layer translates per-provider on send.
         severity_filter = (
             "status:(emergency OR critical OR alert OR error OR warn OR warning)"
         )
@@ -191,14 +209,19 @@ class WatchService:
         # Reuse the analyzer's resolver so integration credentials and
         # demo-fallback behaviour stay consistent with the manual path.
         request = AnalyzeRequest(
-            source=SourceKind.DATADOG,
+            source=source,
             integration_query=query,
             time_window_minutes=s.window_minutes,
             title=None,
         )
 
+        # Resolve per-session credentials at the moment of the poll, so
+        # the user can rotate keys via /settings without restarting the
+        # watcher. None means "fall back to .env defaults" which is fine.
+        overrides = self._resolve_session_overrides(source)
+
         try:
-            logs = await self._analyzer._resolve_logs(request)  # noqa: SLF001
+            logs = await self._analyzer._resolve_logs(request, overrides)  # noqa: SLF001
         except Exception as exc:  # noqa: BLE001
             logger.warning("Watch poll: log fetch failed: %s", exc)
             s.last_error = f"log fetch failed: {exc}"
@@ -236,7 +259,9 @@ class WatchService:
         # Create the incident.
         logger.info("Watch mode auto-creating incident (fp=%s)", fingerprint[:8])
         try:
-            result: AnalyzeResponse = await self._analyzer.analyze(request)
+            result: AnalyzeResponse = await self._analyzer.analyze(
+                request, credential_overrides=overrides,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.exception("Watch poll: analyze failed")
             s.last_error = f"analyze failed: {exc}"
@@ -259,6 +284,25 @@ class WatchService:
         cutoff = now - DEDUP_COOLDOWN_S
         for fp in [k for k, ts in self._status.recent_fingerprints.items() if ts < cutoff]:
             self._status.recent_fingerprints.pop(fp, None)
+
+    def _resolve_session_overrides(self, source: SourceKind) -> Optional[object]:
+        """Pull per-session credentials for the current source, if any.
+
+        The session_store was captured at start() time so the loop -
+        running outside any request - can still look up keys. Returns
+        ``None`` when no session was attached (server-to-server start),
+        in which case the integration falls back to .env credentials.
+        """
+        if self._session_store is None or self._session_id is None:
+            return None
+        store = self._session_store
+        if source == SourceKind.DATADOG:
+            return store.get_datadog(self._session_id)  # type: ignore[attr-defined]
+        if source == SourceKind.GRAFANA:
+            return store.get_grafana(self._session_id)  # type: ignore[attr-defined]
+        if source == SourceKind.NEWRELIC:
+            return store.get_newrelic(self._session_id)  # type: ignore[attr-defined]
+        return None
 
 
 def _fingerprint_logs(logs: str) -> str:

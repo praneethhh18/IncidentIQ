@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Github, Slack } from "lucide-react";
 
 import { EASE } from "@/lib/motion";
 import { FadeIn } from "@/components/motion-primitives";
@@ -452,17 +452,21 @@ function Stat({
 }
 
 function SocialProof() {
-  // simpleicons.org CDN serves single-color SVG brand marks. We use a
-  // grey hex (Tailwind's slate-400 ~ 9ca3af) so the row stays muted on
-  // the landing page; opacity bumps on hover. CC0 licensed, no API key.
-  const integrations: { slug: string; name: string }[] = [
+  // Brand logos for the providers we actually support. For the ones
+  // lucide-react ships a brand icon for (Slack, GitHub) we use the
+  // inlined SVG so the row never depends on an external CDN. For the
+  // rest we hit simpleicons.org/<slug>/<hex> for a clean monochrome
+  // mark - CC0 licensed, no key, but external. Mixing approaches lets
+  // us keep the simplest possible markup while never showing a broken
+  // image (which is what was happening with `slack` on the CDN).
+  const integrations = [
     { slug: "datadog", name: "Datadog" },
     { slug: "grafana", name: "Grafana" },
     { slug: "newrelic", name: "New Relic" },
     { slug: "pagerduty", name: "PagerDuty" },
     { slug: "atlassian", name: "Opsgenie" },
-    { slug: "slack", name: "Slack" },
-    { slug: "github", name: "GitHub" },
+    { slug: "slack", name: "Slack", lucide: Slack },
+    { slug: "github", name: "GitHub", lucide: Github },
   ];
   return (
     <section className="border-y border-white/[0.05] bg-ink-950/50">
@@ -470,20 +474,30 @@ function SocialProof() {
         <span className="text-[11px] uppercase tracking-[0.2em]">
           Integrates with
         </span>
-        {integrations.map((i) => (
-          <span
-            key={i.slug}
-            title={i.name}
-            className="inline-flex items-center"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`https://cdn.simpleicons.org/${i.slug}/9ca3af`}
-              alt={i.name}
-              className="h-5 sm:h-6 opacity-70 hover:opacity-100 transition"
-            />
-          </span>
-        ))}
+        {integrations.map((i) => {
+          const LucideIcon = (i as { lucide?: typeof Github }).lucide;
+          return (
+            <span
+              key={i.slug}
+              title={i.name}
+              className="inline-flex items-center"
+            >
+              {LucideIcon ? (
+                <LucideIcon
+                  className="size-5 sm:size-6 text-ink-500 hover:text-ink-200 transition"
+                  strokeWidth={1.5}
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`https://cdn.simpleicons.org/${i.slug}/9ca3af`}
+                  alt={i.name}
+                  className="h-5 sm:h-6 opacity-70 hover:opacity-100 transition"
+                />
+              )}
+            </span>
+          );
+        })}
       </div>
     </section>
   );

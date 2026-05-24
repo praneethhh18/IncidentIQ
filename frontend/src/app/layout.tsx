@@ -1,12 +1,13 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Github } from "lucide-react";
 
 import { ConditionalBackground } from "@/components/ConditionalBackground";
+import { NavBar } from "@/components/NavBar";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { SessionBootstrap } from "@/components/SessionBootstrap";
+import { SessionChip } from "@/components/SessionChip";
 
 export const metadata: Metadata = {
   title: "IncidentIQ. AI Incident Root Cause Analyzer.",
@@ -34,54 +35,14 @@ export default function RootLayout({
   );
 }
 
-function NavBar() {
-  return (
-    <header className="sticky top-0 z-40 border-b border-white/[0.08] bg-ink-950/90 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-        <Link
-          href="/"
-          className="font-semibold tracking-tight text-ink-50 text-[15px] hover:text-white transition shrink-0"
-        >
-          IncidentIQ
-          <span className="text-ink-400 font-normal">.</span>
-        </Link>
-
-        <nav className="flex items-center gap-3 sm:gap-6 text-[13px]">
-          <Link
-            href="/dashboard"
-            className="text-ink-200 hover:text-white transition font-medium"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/incidents"
-            className="text-ink-200 hover:text-white transition font-medium"
-          >
-            History
-          </Link>
-          <Link
-            href="/settings"
-            className="text-ink-200 hover:text-white transition font-medium hidden sm:inline"
-          >
-            Settings
-          </Link>
-          <Link
-            href="/dashboard"
-            className="btn-primary px-3 sm:px-3.5 py-1.5 text-[12.5px] sm:text-[13px]"
-          >
-            Analyze
-          </Link>
-        </nav>
-      </div>
-    </header>
-  );
-}
-
 function Footer() {
   return (
     <footer className="border-t border-white/[0.05] text-ink-500 text-xs">
-      <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
-        <div>IncidentIQ. Built for on-call.</div>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-5 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span>IncidentIQ. Built for on-call.</span>
+          <SessionChip />
+        </div>
         <a
           href="https://github.com/praneethhh18/IncidentIQ"
           className="flex items-center gap-1.5 hover:text-ink-300 transition"

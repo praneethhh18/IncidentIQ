@@ -77,6 +77,7 @@ export const api = {
   watchStatus: () => request<WatchStatusPayload>("/api/v1/watch/status"),
 
   watchStart: (body: {
+    source?: "datadog" | "grafana" | "newrelic";
     service?: string;
     poll_interval_s?: number;
     window_minutes?: number;
