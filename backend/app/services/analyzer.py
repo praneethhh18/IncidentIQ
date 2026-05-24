@@ -113,7 +113,7 @@ class Analyzer:
             "message": "Generating 5 Whys postmortem…",
         }
         if result.five_whys is None:
-            result.five_whys = build_five_whys(result)
+            result.five_whys = build_five_whys(result, bedrock=self._bedrock)
 
         should_escalate_flag, escalate_reason = _should_escalate(result)
         result.should_escalate = should_escalate_flag
@@ -164,7 +164,7 @@ class Analyzer:
         # Runs regardless of whether Bedrock supplied one, so the dashboard
         # always has the full picture.
         if result.five_whys is None:
-            result.five_whys = build_five_whys(result)
+            result.five_whys = build_five_whys(result, bedrock=self._bedrock)
 
         # Phase 5 — recommend Deep Trace if the regular pass looks shaky.
         should_escalate_flag, escalate_reason = _should_escalate(result)

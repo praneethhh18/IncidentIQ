@@ -1,39 +1,64 @@
 """Derive the 5 Whys postmortem from an analysis.
 
-The 5 Whys ladder is computed locally from the structured analysis the
-LLM already produced. We don't make another LLM call for it - instead
-we chain plain-language Qs and As keyed on the root cause, forensic
-trigger, and top fix. This keeps latency flat and ensures the ladder
-is present even when running on demo fallback.
+Layers 1-3 are mechanical: they restate the symptom, the LLM's root cause,
+and the forensic patient-zero detail. These are already grounded in the
+incident, so we don't re-summon the LLM for them.
 
-(A previous version of this module also synthesised a 'Business Impact'
-view with affected-users / revenue-at-risk / MTTR estimates. That has
-been removed because the numbers were heuristic - they were derived
-from hard-coded severity dictionaries, not measured data - and showing
-fabricated dollar figures alongside real telemetry was dishonest.)
+Layers 4-5 ("missing guardrail" and "systemic cause") plus the
+counter-factual need genuine reasoning about the surrounding org/process,
+not the log lines. Those go through a small Bedrock call so the text is
+specific to the incident instead of a templated paragraph keyed off
+severity. If Bedrock isn't available, we degrade to a short, honest
+statement derived from the actual root cause - never to canned prose.
 """
 
 from __future__ import annotations
 
-from typing import List
+import json
+import logging
+from typing import List, Optional
 
 from app.models import (
     AnalyzeResponse,
     FiveWhys,
-    Severity,
     WhyStep,
+)
+from app.services.bedrock import BedrockClient, BedrockUnavailable
+
+logger = logging.getLogger(__name__)
+
+
+_DEEP_WHYS_SYSTEM_PROMPT = (
+    "You are an SRE postmortem facilitator finishing a 5 Whys ladder. "
+    "Given the symptom, root cause, trigger and top remediation for a real "
+    "incident, write the two deepest layers of the ladder plus a "
+    "counter-factual. Be concrete and specific to this incident - do not "
+    "speak in generalities. Reply with strict JSON only."
+)
+
+_DEEP_WHYS_SCHEMA_HINT = (
+    'Return JSON with exactly these keys:\n'
+    '{\n'
+    '  "missing_guardrail": "one paragraph naming the specific safeguard '
+    'that would have caught this earlier and why it was absent on this path",\n'
+    '  "systemic_cause": "one paragraph on the organisational or '
+    'architectural reason this class of failure is still possible - tie it '
+    'back to the actual root cause, not generic SRE platitudes",\n'
+    '  "counter_factual": "one sentence describing what specific change '
+    'would have prevented patient zero from ever escalating to user impact"\n'
+    '}'
 )
 
 
-# ── 5 Whys ────────────────────────────────────────────────────────────────
-
-
-def build_five_whys(analysis: AnalyzeResponse) -> FiveWhys:
+def build_five_whys(
+    analysis: AnalyzeResponse,
+    bedrock: Optional[BedrockClient] = None,
+) -> FiveWhys:
     """Generate a 5 Whys ladder from the analysis context.
 
-    Uses the symptom (severity rationale) as Why #1, then chains down
-    through the root cause and forensic trigger to reach a systemic
-    explanation. Always produces 5 steps even with sparse input.
+    Layers 1-3 are derived directly from the structured analysis. Layers
+    4-5 and the counter-factual come from Bedrock when available, and
+    from a short root-cause-derived statement otherwise.
     """
     symptom = _first_symptom(analysis)
     root_cause = analysis.root_cause.strip().rstrip(".")
@@ -48,6 +73,8 @@ def build_five_whys(analysis: AnalyzeResponse) -> FiveWhys:
         else ""
     )
 
+    deep = _deep_layers(analysis, bedrock)
+
     steps: List[WhyStep] = [
         WhyStep(
             n=1,
@@ -60,7 +87,8 @@ def build_five_whys(analysis: AnalyzeResponse) -> FiveWhys:
             answer=(
                 f"Because {_lower_first(trigger)}."
                 if trigger
-                else "Because an upstream condition allowed the failure to propagate without an early circuit-breaker."
+                else "Because an upstream condition went unbounded; there was no early "
+                "circuit-breaker on the path that failed."
             ),
         ),
         WhyStep(
@@ -68,82 +96,150 @@ def build_five_whys(analysis: AnalyzeResponse) -> FiveWhys:
             question="Why was that condition allowed to develop?",
             answer=(
                 f"The earliest observable signal was: {_lower_first(patient_zero)}. "
-                "It existed for minutes before user impact, but there was no alert that would have paged the on-call early enough."
+                "It existed before user impact, but nothing paged the on-call early enough."
                 if patient_zero
-                else "Because the relevant SLO indicator wasn't being measured or wasn't paging early enough."
+                else "Because the relevant SLO indicator wasn't measured, or wasn't paging early enough."
             ),
         ),
         WhyStep(
             n=4,
             question="Why wasn't there a guardrail that caught it earlier?",
-            answer=_layer_four_answer(analysis),
+            answer=deep["missing_guardrail"],
         ),
         WhyStep(
             n=5,
             question="Why does the system permit that class of failure at all?",
-            answer=_layer_five_answer(analysis),
+            answer=deep["systemic_cause"],
         ),
     ]
 
-    counter_factual = _counter_factual(analysis)
-    final_root_cause = steps[-1].answer
     return FiveWhys(
         steps=steps,
-        final_root_cause=final_root_cause,
-        counter_factual=counter_factual,
+        final_root_cause=steps[-1].answer,
+        counter_factual=deep["counter_factual"],
     )
+
+
+# ── Deep layers (Bedrock-backed) ──────────────────────────────────────────
+
+
+def _deep_layers(
+    analysis: AnalyzeResponse,
+    bedrock: Optional[BedrockClient],
+) -> dict:
+    """Return {missing_guardrail, systemic_cause, counter_factual}.
+
+    Calls Bedrock when available; otherwise returns short statements
+    derived from the actual root cause and top fix. Never returns
+    templated severity-keyed prose.
+    """
+    if bedrock is not None and bedrock.enabled:
+        try:
+            return _llm_deep_layers(analysis, bedrock)
+        except BedrockUnavailable as exc:
+            logger.warning("5 Whys deep layers fell back; bedrock error: %s", exc)
+        except Exception:  # noqa: BLE001
+            logger.exception("5 Whys deep layers fell back on unexpected error")
+
+    return _fallback_deep_layers(analysis)
+
+
+def _llm_deep_layers(analysis: AnalyzeResponse, bedrock: BedrockClient) -> dict:
+    user_prompt = _build_deep_prompt(analysis)
+    raw = bedrock.converse_json(
+        system_prompt=_DEEP_WHYS_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        max_tokens=900,
+        temperature=0.3,
+    )
+
+    missing = str(raw.get("missing_guardrail", "")).strip()
+    systemic = str(raw.get("systemic_cause", "")).strip()
+    counter = str(raw.get("counter_factual", "")).strip()
+
+    if not (missing and systemic):
+        # Model returned malformed payload; degrade gracefully.
+        raise BedrockUnavailable("incomplete 5 Whys payload")
+
+    return {
+        "missing_guardrail": missing,
+        "systemic_cause": systemic,
+        "counter_factual": counter,
+    }
+
+
+def _build_deep_prompt(analysis: AnalyzeResponse) -> str:
+    top_fix = (
+        sorted(analysis.fixes, key=lambda f: f.priority)[0] if analysis.fixes else None
+    )
+    forensic = analysis.forensic
+
+    payload = {
+        "title": analysis.title,
+        "severity": analysis.severity.value,
+        "symptom": analysis.severity_rationale,
+        "root_cause": analysis.root_cause,
+        "trigger_hypothesis": forensic.trigger_hypothesis if forensic else "",
+        "patient_zero": forensic.patient_zero.detail if forensic else "",
+        "propagation_path": forensic.propagation_path if forensic else [],
+        "top_fix_title": top_fix.title if top_fix else "",
+        "top_fix_action": top_fix.action if top_fix else "",
+    }
+
+    return (
+        "Incident facts (JSON):\n"
+        f"{json.dumps(payload, ensure_ascii=False)}\n\n"
+        f"{_DEEP_WHYS_SCHEMA_HINT}"
+    )
+
+
+def _fallback_deep_layers(analysis: AnalyzeResponse) -> dict:
+    """Honest, root-cause-grounded text used when Bedrock can't answer.
+
+    No severity-keyed templates, no canned 'reliability budget' prose -
+    just a short statement that names the actual root cause and top fix
+    so the ladder still completes.
+    """
+    root_cause = analysis.root_cause.strip().rstrip(".")
+    top_fix = (
+        sorted(analysis.fixes, key=lambda f: f.priority)[0] if analysis.fixes else None
+    )
+
+    if top_fix:
+        missing = (
+            f"The safeguard captured by '{top_fix.title}' was not in place on this path; "
+            f"the remediation ({top_fix.action}) is the gap that let the cascade through."
+        )
+        counter = (
+            f"If '{top_fix.title}' had already been deployed on this path, patient zero "
+            "would have been contained before user-visible symptoms appeared."
+        )
+    else:
+        missing = (
+            "No automated guardrail (rate limit, circuit breaker, resource budget, "
+            "or canary) was contesting the failure on this path."
+        )
+        counter = ""
+
+    systemic = (
+        f"This class of failure remains possible because '{root_cause}' is still a "
+        "reachable state from normal operating conditions - the codepath that produced "
+        "it lacks an enforced invariant that would make it unreachable."
+    )
+
+    return {
+        "missing_guardrail": missing,
+        "systemic_cause": systemic,
+        "counter_factual": counter,
+    }
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────
 
 
 def _first_symptom(analysis: AnalyzeResponse) -> str:
     rationale = analysis.severity_rationale.strip().rstrip(".")
     return rationale or "user-facing errors / degraded latency on a critical path"
-
-
-def _layer_four_answer(analysis: AnalyzeResponse) -> str:
-    # Top-priority fix tells us what guardrail was missing.
-    if analysis.fixes:
-        top_fix = sorted(analysis.fixes, key=lambda f: f.priority)[0]
-        return (
-            f"Because the safeguard described by the top remediation - "
-            f"'{top_fix.title.lower()}' - was not in place or not enforced. "
-            "The fix exists as a known practice but hadn't been adopted on this path."
-        )
-    return (
-        "Because there was no automated guardrail (rate limit, circuit breaker, "
-        "resource budget, or canary) that would have contained the blast radius."
-    )
-
-
-def _layer_five_answer(analysis: AnalyzeResponse) -> str:
-    sev = analysis.severity
-    if sev == Severity.P1:
-        return (
-            "Because the platform's reliability budget for this critical path is "
-            "treated as 'best-effort' rather than 'must not break' - meaning "
-            "individual teams ship without an enforced quality gate, and the "
-            "absence of guardrails accumulates silently until one cascade exposes it."
-        )
-    if sev == Severity.P2:
-        return (
-            "Because non-critical paths inherit the same shared infrastructure as "
-            "critical ones but without the same defensive posture - when load or "
-            "leaks cross a quiet threshold, the non-critical path is the first to give."
-        )
-    return (
-        "Because slow-burn issues on non-customer-critical paths don't trigger "
-        "the same investigative urgency, so they accumulate until an alert finally fires."
-    )
-
-
-def _counter_factual(analysis: AnalyzeResponse) -> str:
-    if not analysis.fixes:
-        return ""
-    top_fix = sorted(analysis.fixes, key=lambda f: f.priority)[0]
-    return (
-        f"If '{top_fix.title}' had already been in place, "
-        "patient zero would either not have occurred or would have been auto-mitigated "
-        "before any user-visible symptom - turning this from a P1 into a tracked warning."
-    )
 
 
 def _lower_first(text: str) -> str:
