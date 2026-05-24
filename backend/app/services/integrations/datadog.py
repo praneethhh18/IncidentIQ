@@ -58,13 +58,20 @@ class DatadogIntegration(MonitoringIntegration):
         )
 
     def is_configured_for(self, overrides: Optional["object"] = None) -> bool:
-        """True if EITHER the per-session overrides or .env have valid creds."""
-        if overrides is not None:
-            return bool(
-                getattr(overrides, "api_key", None)
-                and getattr(overrides, "app_key", None)
-            )
-        return self._settings.datadog_enabled
+        """Per-user configuration check.
+
+        Strict: only returns True when the supplied per-user overrides
+        carry both keys. Deliberately does NOT fall through to .env so
+        fresh user accounts don't see the global demo Datadog as
+        "connected". Server-side flows that still want env fallback
+        (webhook ingest, etc.) should use ``is_configured()``.
+        """
+        if overrides is None:
+            return False
+        return bool(
+            getattr(overrides, "api_key", None)
+            and getattr(overrides, "app_key", None)
+        )
 
     async def fetch_logs(
         self,

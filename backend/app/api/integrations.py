@@ -30,8 +30,81 @@ router = APIRouter()
 @router.get("/integrations", response_model=List[IntegrationStatus])
 async def list_integrations(
     registry: IntegrationRegistry = Depends(get_integrations),
+    session_store: SessionCredentialStore = Depends(get_session_store),
+    session_id: Optional[str] = Depends(session_id_header),
 ) -> List[IntegrationStatus]:
-    return await registry.status_all()
+    """Per-user integration status.
+
+    Each signed-in user has their own credential slot - we never leak the
+    global EC2 .env Datadog/Grafana/NewRelic creds into a user's view of
+    "what's connected", because that's exactly what produced the bug where
+    a fresh Google sign-in saw the demo account already wired up.
+
+    Status is computed purely from whether the user has pasted their own
+    keys (booleans only, never echoes back the secrets). Validation
+    against the upstream happens at credential-save time, not here.
+    """
+    statuses: List[IntegrationStatus] = []
+
+    dd_overrides = session_store.get_datadog(session_id)
+    statuses.append(
+        IntegrationStatus(
+            name="Datadog",
+            connected=bool(
+                dd_overrides
+                and getattr(dd_overrides, "api_key", None)
+                and getattr(dd_overrides, "app_key", None)
+            ),
+            enabled=True,
+            detail=(
+                f"Connected to {getattr(dd_overrides, 'site', None) or 'datadoghq.com'}"
+                if dd_overrides
+                else "Paste your Datadog API key + App key on the Settings page to enable."
+            ),
+        ),
+    )
+
+    gf_overrides = session_store.get_grafana(session_id)
+    statuses.append(
+        IntegrationStatus(
+            name="Grafana",
+            connected=bool(
+                gf_overrides
+                and getattr(gf_overrides, "url", None)
+                and getattr(gf_overrides, "api_key", None)
+            ),
+            enabled=True,
+            detail=(
+                f"Connected to {getattr(gf_overrides, 'url', '')}"
+                if gf_overrides
+                else "Paste your Loki URL + access token on the Settings page to enable."
+            ),
+        ),
+    )
+
+    nr_overrides = session_store.get_newrelic(session_id)
+    statuses.append(
+        IntegrationStatus(
+            name="New Relic",
+            connected=bool(
+                nr_overrides
+                and getattr(nr_overrides, "user_key", None)
+                and getattr(nr_overrides, "account_id", None)
+            ),
+            enabled=True,
+            detail=(
+                f"Connected (account {getattr(nr_overrides, 'account_id', '')})"
+                if nr_overrides
+                else "Paste your User Key + Account ID on the Settings page to enable."
+            ),
+        ),
+    )
+
+    # We deliberately ignore `registry` here - keeping the parameter in
+    # the signature for backwards compatibility with code that depends on
+    # the singleton being initialised on first request.
+    _ = registry
+    return statuses
 
 
 @router.get("/integrations/datadog/services")

@@ -84,10 +84,10 @@ export function AnalyzePanel({
         setDatadogServices(res.services ?? []);
         setDatadogServicesLoaded(true);
         if (!datadogService && res.services?.length) {
-          const preferred = res.services.find((s) =>
-            s.toLowerCase().includes("fashion-aura"),
-          );
-          setDatadogService(preferred ?? res.services[0]);
+          // Pick the first service the user's own Datadog account
+          // returned. We used to bias toward "fashion-aura" here for the
+          // demo, but that leaked into every fresh sign-in.
+          setDatadogService(res.services[0]);
         }
       } catch {
         setDatadogServicesLoaded(true);

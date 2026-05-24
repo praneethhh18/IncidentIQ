@@ -8,6 +8,7 @@ import {
   RadioTower,
   Square,
   Sparkles,
+  X,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -43,7 +44,31 @@ export function WatchToggle({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<WatchSource>("datadog");
+  // Per-browser "I've seen this, hide it" dismiss state. Only honoured
+  // while the poller is idle - the moment Watch Mode is running we
+  // unconditionally show the card so operators don't lose the live
+  // status panel.
+  const [hidden, setHidden] = useState(false);
   const lastSeenIncidentId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setHidden(window.localStorage.getItem("iiq.hide_watch_card") === "1");
+  }, []);
+
+  const dismiss = () => {
+    setHidden(true);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("iiq.hide_watch_card", "1");
+    }
+  };
+
+  const restore = () => {
+    setHidden(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("iiq.hide_watch_card");
+    }
+  };
 
   const refresh = async () => {
     try {
@@ -95,10 +120,25 @@ export function WatchToggle({
   const running = status?.running ?? false;
   const lastPolledRel = relativeTime(status?.last_polled_at);
 
+  // Dismissed-and-idle state: render only a thin "show again" affordance.
+  if (hidden && !running) {
+    return (
+      <div className="text-right -mt-2 mb-1">
+        <button
+          type="button"
+          onClick={restore}
+          className="text-[11px] text-ink-500 hover:text-ink-300 underline decoration-dotted underline-offset-4 transition"
+        >
+          Show Hands-off detection
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
-        "rounded-xl border px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-4 flex-wrap transition",
+        "relative rounded-xl border px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-4 flex-wrap transition",
         running
           ? "border-emerald-500/30 bg-emerald-500/[0.04]"
           : "border-white/[0.07] bg-white/[0.02] hover:bg-white/[0.04]",
@@ -214,6 +254,18 @@ export function WatchToggle({
           <ArrowRight className="size-3.5 -mr-1" />
         ) : null}
       </button>
+
+      {!running ? (
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Hide Hands-off detection card"
+          title="Hide this card"
+          className="absolute top-1.5 right-1.5 size-6 grid place-items-center rounded-md text-ink-500 hover:text-ink-200 hover:bg-white/[0.05] transition"
+        >
+          <X className="size-3.5" />
+        </button>
+      ) : null}
     </div>
   );
 }
