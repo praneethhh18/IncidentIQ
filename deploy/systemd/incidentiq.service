@@ -3,6 +3,12 @@ Description=IncidentIQ FastAPI backend (uvicorn)
 Documentation=https://github.com/praneethhh18/IncidentIQ
 After=network-online.target
 Wants=network-online.target
+# StartLimitIntervalSec lives in [Unit] in current systemd; the old
+# place in [Service] still works but emits a deprecation warning on
+# every reload. Caps retries at 5 in 60s so a broken deploy doesn't
+# hot-loop forever.
+StartLimitIntervalSec=60s
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -34,13 +40,9 @@ ExecStart=/opt/incidentiq/backend/.venv/bin/uvicorn \
     --log-level info \
     --access-log
 
-# Restart on crash but not so aggressively that a broken deploy
-# hot-loops forever - systemd will give up after 5 attempts in 60s
-# and we'll see it in the GH Actions health check.
+# Restart on crash. The burst limit lives in [Unit] above.
 Restart=on-failure
 RestartSec=3s
-StartLimitIntervalSec=60s
-StartLimitBurst=5
 
 # Reasonable hardening - the process doesn't need to write outside its
 # workdir or read user home dirs.
