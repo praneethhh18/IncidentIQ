@@ -73,9 +73,19 @@ async def github_callback(
     # if the user was browsing as a guest, and (b) refresh the user chip
     # in the header. Frontend reads gh_login from the fragment instead
     # of round-tripping through another /auth/me call.
+    #
+    # We land at the site root ("/") so the user sees the marketing page
+    # signed in - they then navigate to Dashboard / History from there.
+    # The post_login_redirect env var may still point at /dashboard for
+    # backwards compatibility; we strip the path and only honour the
+    # origin so existing deploys don't need to be reconfigured.
+    from urllib.parse import urlparse  # local import keeps top of file clean
+
     target = get_settings().github_oauth_post_login_redirect
+    parsed = urlparse(target)
+    origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme else target
     return RedirectResponse(
-        url=f"{target}#github=connected&login={session.login}",
+        url=f"{origin}/#github=connected&login={session.login}",
         status_code=302,
     )
 

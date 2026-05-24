@@ -68,12 +68,25 @@ export function userKind(): UserKind | null {
 
 // ── Write ───────────────────────────────────────────────────────────
 
+// Custom event name used to notify in-page listeners (UserMenu, etc.)
+// that the signed-in identity changed. Native `storage` events only fire
+// across tabs, so we dispatch our own for same-tab updates - otherwise
+// the avatar chip takes up to a few seconds to appear after sign-in
+// (it would only refresh on the next focus/blur).
+export const AUTH_CHANGE_EVENT = "iiq:auth-change";
+
+function emitAuthChange(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(AUTH_CHANGE_EVENT));
+}
+
 export function setUser(profile: UserProfile): void {
   if (typeof window === "undefined") return;
   cachedUserId = profile.id;
   cachedProfile = profile;
   window.localStorage.setItem(STORAGE_USER_ID, profile.id);
   window.localStorage.setItem(STORAGE_PROFILE, JSON.stringify(profile));
+  emitAuthChange();
 }
 
 export function clearUser(): void {
@@ -82,6 +95,7 @@ export function clearUser(): void {
   cachedProfile = null;
   window.localStorage.removeItem(STORAGE_USER_ID);
   window.localStorage.removeItem(STORAGE_PROFILE);
+  emitAuthChange();
 }
 
 // ── Auth flows ─────────────────────────────────────────────────────

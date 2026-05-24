@@ -29,9 +29,10 @@ export function AuthBootstrap(): null {
   const pathname = usePathname() ?? "/";
 
   useEffect(() => {
-    // GitHub OAuth callback hand-off. The callback page itself is the
-    // backend's redirect target (which lands on /dashboard with the
-    // hash payload), so this effect runs on the dashboard mount.
+    // GitHub OAuth callback hand-off. The backend now lands the user at
+    // the site root ("/") with the hash payload, so this effect runs on
+    // the landing-page mount. (Older deploys land at /dashboard; either
+    // works since AuthBootstrap is mounted at the root layout.)
     if (typeof window === "undefined") return;
     const hash = window.location.hash;
     if (hash.includes("github=connected")) {

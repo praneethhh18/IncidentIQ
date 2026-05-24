@@ -9,7 +9,12 @@ import {
   UserCircle2,
 } from "lucide-react";
 
-import { getUserProfile, signOut, type UserProfile } from "@/lib/auth";
+import {
+  AUTH_CHANGE_EVENT,
+  getUserProfile,
+  signOut,
+  type UserProfile,
+} from "@/lib/auth";
 
 /**
  * Header chip + dropdown showing who's signed in. Reads from the same
@@ -28,10 +33,22 @@ export function UserMenu() {
 
   useEffect(() => {
     setProfile(getUserProfile());
-    // Re-poll on focus so a sign-in in another tab (rare) is reflected.
-    const onFocus = () => setProfile(getUserProfile());
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    // Re-read on three signals so the chip updates the instant the user
+    // signs in or out - without these, the chip is stuck on its initial
+    // null value until something else triggers a re-render (which used
+    // to leave a 5-9 second blank window after guest sign-in).
+    //   - `iiq:auth-change`: same-tab sign-in/out (we dispatch it)
+    //   - `storage`: another tab signed in/out
+    //   - `focus`: belt-and-braces for older browsers
+    const refresh = () => setProfile(getUserProfile());
+    window.addEventListener(AUTH_CHANGE_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener(AUTH_CHANGE_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
+    };
   }, []);
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Github, Loader2, UserCircle2 } from "lucide-react";
 
@@ -34,9 +34,14 @@ export default function SignInPage() {
 }
 
 function SignInForm() {
-  const router = useRouter();
   const params = useSearchParams();
-  const from = params.get("from") || "/dashboard";
+  // Always land on the landing page (/) after sign-in. The user can then
+  // choose where to go - Dashboard to analyze, History for past incidents,
+  // Settings for credentials. Bouncing straight into /dashboard makes the
+  // first-time experience confusing because the dashboard expects you to
+  // have already done some setup. Landing -> CTA -> dashboard is the
+  // intended onboarding path.
+  const _ignoredFrom = params.get("from"); // kept so the search-param hook still gates Suspense correctly
 
   const [busyPath, setBusyPath] = useState<"github" | "guest" | "google" | null>(
     null,
@@ -62,7 +67,11 @@ function SignInForm() {
     setBusyPath("guest");
     try {
       await signInAsGuest();
-      router.replace(from);
+      // Hard-navigate so the layout re-mounts and the UserMenu picks up
+      // the new profile on its first render (router.replace keeps the
+      // layout mounted, which made the avatar chip appear several
+      // seconds late on slow networks).
+      window.location.href = "/";
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusyPath(null);
@@ -79,7 +88,7 @@ function SignInForm() {
       // actually clicks Google sign-in.
       const { signInWithGoogle } = await import("@/lib/firebase-auth");
       await signInWithGoogle();
-      router.replace(from);
+      window.location.href = "/";
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusyPath(null);
