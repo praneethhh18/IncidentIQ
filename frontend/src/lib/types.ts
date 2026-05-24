@@ -114,6 +114,26 @@ export interface FiveWhys {
   counter_factual: string;
 }
 
+export interface GitHubStatus {
+  enabled: boolean;
+  connected: boolean;
+  login?: string;
+  avatar_url?: string;
+  scopes?: string;
+  reason?: string;
+}
+
+export interface GitHubRepo {
+  full_name: string;
+  name: string;
+  private: boolean;
+  clone_url: string;
+  default_branch: string;
+  description: string;
+  updated_at: string | null;
+  language: string;
+}
+
 export interface CodeFixSubStep {
   name: string;
   summary: string;

@@ -44,6 +44,15 @@ class Settings(BaseSettings):
     sendgrid_from_email: str = "incidentiq@example.com"
     notify_email: str | None = None
 
+    # GitHub OAuth - lets the user authorise IncidentIQ to clone their
+    # repos through a real OAuth flow instead of pasting URLs. Register
+    # an OAuth App at github.com/settings/developers (OAuth Apps section)
+    # with callback URL http://localhost:8000/api/v1/auth/github/callback.
+    github_oauth_client_id: str | None = None
+    github_oauth_client_secret: str | None = None
+    github_oauth_callback_url: str = "http://localhost:8000/api/v1/auth/github/callback"
+    github_oauth_post_login_redirect: str = "http://localhost:3000/dashboard"
+
     # Server — store as raw string and expose parsed list via property so
     # pydantic-settings doesn't try to JSON-decode comma-separated input
     # from .env files.
@@ -96,6 +105,10 @@ class Settings(BaseSettings):
     @property
     def email_enabled(self) -> bool:
         return bool(self.sendgrid_api_key and self.notify_email)
+
+    @property
+    def github_oauth_enabled(self) -> bool:
+        return bool(self.github_oauth_client_id and self.github_oauth_client_secret)
 
 
 @lru_cache(maxsize=1)

@@ -9,6 +9,8 @@ import type {
   AnalyzeRequest,
   AnalyzeResponse,
   ChatMessage,
+  GitHubRepo,
+  GitHubStatus,
   IncidentSummary,
   IntegrationStatus,
   SampleIncident,
@@ -92,6 +94,17 @@ export const api = {
     request<AnalyzeResponse>(`/api/v1/incidents/${incidentId}/code-fix`, {
       method: "POST",
       json: { repo_url: repoUrl },
+    }),
+
+  githubStatus: () => request<GitHubStatus>("/api/v1/auth/github/me"),
+
+  githubRepos: () => request<GitHubRepo[]>("/api/v1/auth/github/repos"),
+
+  githubLoginUrl: () => `${API_BASE}/api/v1/auth/github/login`,
+
+  githubDisconnect: () =>
+    request<{ status: string }>("/api/v1/auth/github/disconnect", {
+      method: "POST",
     }),
 
   chat: (incidentId: string, message: string) =>

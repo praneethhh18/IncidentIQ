@@ -7,6 +7,7 @@ from threading import Lock
 from app.core.config import get_settings
 from app.services.analyzer import Analyzer
 from app.services.bedrock import BedrockClient
+from app.services.github_auth import GitHubAuthService, get_github_auth_service
 from app.services.integrations import IntegrationRegistry
 from app.services.store import AnalysisStore, get_store
 
@@ -43,3 +44,7 @@ def get_analyzer() -> Analyzer:
 
 def get_analysis_store() -> AnalysisStore:
     return get_store()
+
+
+def get_github_auth() -> GitHubAuthService:
+    return get_github_auth_service(get_settings())

@@ -12,10 +12,11 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.deps import get_analysis_store, get_bedrock
+from app.api.deps import get_analysis_store, get_bedrock, get_github_auth
 from app.models import AnalyzeResponse
 from app.services.bedrock import BedrockClient, BedrockUnavailable
 from app.services.code_fix import CodeFixError, generate_code_fix
+from app.services.github_auth import GitHubAuthService
 from app.services.store import AnalysisStore
 
 logger = logging.getLogger(__name__)
@@ -35,21 +36,31 @@ def code_fix(
     body: CodeFixRequest,
     store: AnalysisStore = Depends(get_analysis_store),
     bedrock: BedrockClient = Depends(get_bedrock),
+    github: GitHubAuthService = Depends(get_github_auth),
 ) -> AnalyzeResponse:
     analysis = store.get(incident_id)
     if analysis is None:
         raise HTTPException(status_code=404, detail="Incident not found")
 
-    if not body.repo_url.strip():
+    raw_repo_url = body.repo_url.strip()
+    if not raw_repo_url:
         raise HTTPException(status_code=400, detail="repo_url is required")
 
+    # If we have an active GitHub OAuth session, transparently inject
+    # the token into the clone URL so private repos work without the
+    # user pasting a PAT. Public-repo URLs are returned unchanged.
+    clone_url = github.authenticated_clone_url(raw_repo_url)
+
     try:
-        fix = generate_code_fix(analysis, body.repo_url.strip(), bedrock)
+        fix = generate_code_fix(analysis, clone_url, bedrock)
     except CodeFixError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except BedrockUnavailable as exc:
         raise HTTPException(status_code=502, detail=f"Model call failed: {exc}") from exc
 
+    # Never store the token-bearing URL on the incident - keep the
+    # human-readable form.
+    fix.repo_url = raw_repo_url
     analysis.code_fix = fix
     store.save(analysis)
     return analysis
