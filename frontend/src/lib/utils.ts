@@ -18,8 +18,13 @@ export function formatRelative(iso: string): string {
   return `${d}d ago`;
 }
 
+// Pin to en-GB on both server and client so SSR output matches the
+// browser exactly. Using `undefined` here causes a hydration mismatch
+// because Node and the browser pick different default locales.
+const LOCALE = "en-GB";
+
 export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
+  return new Date(iso).toLocaleTimeString(LOCALE, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -28,7 +33,7 @@ export function formatTime(iso: string): string {
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(LOCALE, {
     year: "numeric",
     month: "short",
     day: "2-digit",
