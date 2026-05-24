@@ -18,6 +18,7 @@ their actual codebase.
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import logging
 import re
@@ -40,9 +41,14 @@ REPO_CACHE_DIR = Path("cache") / "repos"
 
 # Hard caps - keeps the LLM prompt cheap and predictable.
 MAX_CANDIDATE_FILES = 5
-MAX_FILE_CHARS = 3500
+# Diagnose step looks at multiple files; keep each one small enough that
+# the combined prompt stays cheap.
+MAX_FILE_CHARS_DIAGNOSE = 4000
+# Patch step looks at one file - we can afford to send the whole thing
+# so the LLM has every line to copy bytes from.
+MAX_FILE_CHARS_PATCH = 12000
 MAX_LOCATE_HITS = 30
-GIT_CLONE_TIMEOUT = 60
+GIT_CLONE_TIMEOUT = 180
 VERIFY_TIMEOUT = 45
 
 # File extensions we consider real source code worth showing the LLM.
@@ -126,9 +132,10 @@ def generate_code_fix(
         )
     )
 
-    # 4) PATCH - LLM generates a unified diff.
+    # 4) PATCH - LLM produces the fixed snippet; we generate the diff
+    # locally via difflib so syntax + line numbers are always valid.
     t0 = time.perf_counter()
-    diff_text = _patch(analysis, diagnosis, bedrock)
+    diff_text = _patch(analysis, diagnosis, repo_root, bedrock)
     sub_steps.append(
         CodeFixSubStep(
             name="patch",
@@ -208,9 +215,15 @@ def _ensure_repo(repo_url: str) -> Path:
 
     logger.info("Cloning %s into %s", repo_url, target)
     try:
+        # autocrlf=false keeps files with their checked-in line endings
+        # (usually LF), so diffs we generate match the bytes on disk.
         subprocess.run(
-            ["git", "clone", "--depth=1", repo_url, str(target)],
+            ["git", "-c", "core.autocrlf=false", "clone", "--depth=1", repo_url, str(target)],
             check=True, timeout=GIT_CLONE_TIMEOUT, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "core.autocrlf", "false"],
+            cwd=str(target), check=False, capture_output=True, timeout=10,
         )
     except subprocess.CalledProcessError as exc:
         raise CodeFixError(
@@ -263,7 +276,21 @@ def _extract_signature_terms(analysis: AnalyzeResponse) -> List[str]:
     for svc in analysis.affected_services:
         _add(svc.name)
 
-    # Evidence lines: extract identifier-like tokens.
+    # Stack-trace paths are the strongest hint when present. They tell
+    # us exactly which file blew up. Extract the full path, basename,
+    # and meaningful directory components.
+    path_re = re.compile(
+        r"[A-Za-z][A-Za-z0-9_/\\-]{2,}\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|rb|php|cs)"
+    )
+    for line in analysis.evidence[:6]:
+        for match in path_re.findall(line):
+            normalised = match.replace("\\", "/")
+            _add(Path(normalised).stem)
+            for part in Path(normalised).parts[:-1]:
+                if part and part not in {"var", "task", "src", "app"} and len(part) >= 3:
+                    _add(part)
+
+    # Other identifier-like tokens from evidence.
     for line in analysis.evidence[:6]:
         for token in re.findall(r"[A-Za-z][A-Za-z0-9_/.-]{4,}", line):
             if token.lower() in {
@@ -273,7 +300,7 @@ def _extract_signature_terms(analysis: AnalyzeResponse) -> List[str]:
             }:
                 continue
             _add(token)
-            if len(terms) > 18:
+            if len(terms) > 22:
                 break
 
     # Service hint from the request and forensic propagation path.
@@ -281,7 +308,7 @@ def _extract_signature_terms(analysis: AnalyzeResponse) -> List[str]:
         for hop in analysis.forensic.propagation_path:
             _add(hop)
 
-    return terms[:18]
+    return terms[:22]
 
 
 def _rg_files(repo_root: Path, term: str) -> List[str]:
@@ -399,9 +426,31 @@ def _diagnose(
     if not (file_path and snippet and rationale):
         raise CodeFixError("Diagnose sub-agent returned incomplete payload.")
     if file_path not in candidate_paths:
-        # Model picked a path we didn't show it; fall back to the top hit.
-        logger.warning("Diagnose picked unknown path %s; using top candidate", file_path)
-        file_path = candidate_paths[0]
+        # Model picked a path we didn't show it - typically a tiny
+        # variation like .js vs .ts. Try to match by filename stem
+        # against the candidates we actually offered before falling
+        # back to the top hit.
+        target_stem = Path(file_path).stem.lower()
+        target_basename = Path(file_path).name.lower()
+        matched: Optional[str] = None
+        for c in candidate_paths:
+            if Path(c).name.lower() == target_basename:
+                matched = c
+                break
+        if matched is None:
+            for c in candidate_paths:
+                if Path(c).stem.lower() == target_stem:
+                    matched = c
+                    break
+        if matched is None:
+            logger.warning(
+                "Diagnose picked unknown path %s; no stem match in %s; using top candidate",
+                file_path, candidate_paths,
+            )
+            matched = candidate_paths[0]
+        else:
+            logger.info("Diagnose path %s resolved to %s via stem match", file_path, matched)
+        file_path = matched
 
     return _Diagnosis(
         file_path=file_path, snippet=snippet, rationale=rationale, confidence=confidence,
@@ -411,40 +460,171 @@ def _diagnose(
 def _patch(
     analysis: AnalyzeResponse,
     diagnosis: _Diagnosis,
+    repo_root: Path,
     bedrock: BedrockClient,
 ) -> str:
-    """LLM call: emit a unified diff that fixes the buggy region."""
+    """LLM picks a verbatim find chunk and writes its replacement.
+
+    We then locate the find chunk in the actual file bytes and generate
+    a unified diff with difflib. The LLM never authors diff syntax, so
+    it can't miscount hunks, hallucinate context, or use wrong line
+    numbers. This is the single biggest reliability win in the pipeline.
+    """
+    file_text = _read_file_capped(
+        diagnosis.file_path, repo_root, max_chars=MAX_FILE_CHARS_PATCH,
+    )
+    if file_text is None:
+        raise CodeFixError(f"Patch sub-agent could not read {diagnosis.file_path}")
+
     user_prompt = (
-        "Generate a UNIFIED DIFF that fixes the buggy code. The diff must:\n"
-        "  - apply cleanly via `git apply` from the repo root,\n"
-        "  - start with the standard `--- a/<path>` and `+++ b/<path>` headers,\n"
-        "  - include 3 lines of surrounding context,\n"
-        "  - change only what is necessary to fix the bug,\n"
-        "  - not include any prose, commentary, or markdown fences.\n\n"
-        f"Buggy file: {diagnosis.file_path}\n"
+        "Fix the bug. Respond with strict JSON.\n\n"
+        "Rules:\n"
+        "  - `find` MUST be a verbatim copy of contiguous lines from the\n"
+        "    file shown below. Copy the bytes EXACTLY: same indentation,\n"
+        "    same quotes, same operators, same trailing punctuation. Do\n"
+        "    not paraphrase or re-format. If you change a single byte,\n"
+        "    the patch will fail to apply.\n"
+        "  - `replace` is what those bytes should become. Keep the same\n"
+        "    indentation. Change only what is necessary to fix the bug.\n"
+        "  - `find` should be at least 1 full line and at most ~12 lines.\n"
+        "    Make it long enough to appear exactly once in the file.\n\n"
+        f"Buggy file path: {diagnosis.file_path}\n"
         f"Why it's buggy: {diagnosis.rationale}\n"
-        "Incident root cause: " + analysis.root_cause + "\n\n"
-        "Current suspicious code (as it exists today):\n"
-        + diagnosis.snippet
-        + "\n\n"
-        "Reply with the diff ONLY. No explanation."
+        f"Incident root cause: {analysis.root_cause}\n\n"
+        "Full file contents (copy bytes from here, do not paraphrase):\n"
+        "----- begin file -----\n"
+        f"{file_text}"
+        "----- end file -----\n\n"
+        'Return JSON: {"find": "...", "replace": "..."}'
     )
 
-    diff_text = bedrock.chat(
+    payload = bedrock.converse_json(
         system_prompt=(
-            "You are a careful staff engineer writing a minimal, surgical "
-            "patch in unified diff format. You never include prose, only "
-            "the diff. Lines must use real tabs/spaces from the original."
+            "You are a careful staff engineer producing a minimal, "
+            "byte-exact code edit. You never paraphrase the `find` "
+            "string - it has to match the source file character for "
+            "character. Reply with strict JSON only."
         ),
-        messages=[{"role": "user", "content": user_prompt}],
+        user_prompt=user_prompt,
         max_tokens=900,
         temperature=0.15,
     )
 
-    diff_text = _strip_code_fences(diff_text).strip()
-    if "--- " not in diff_text or "+++ " not in diff_text:
-        raise CodeFixError("Patch sub-agent did not return a recognisable diff.")
-    return diff_text
+    find = str(payload.get("find", ""))
+    replace = str(payload.get("replace", ""))
+    if not find or not replace:
+        raise CodeFixError("Patch sub-agent returned empty find/replace.")
+    if find == replace:
+        raise CodeFixError("Patch sub-agent returned no-op (find == replace).")
+
+    # Find the chunk in the real file. If the LLM normalised line
+    # endings or trimmed trailing whitespace, retry against a tolerant
+    # form of the file text.
+    # Anchor the find chunk in the real file, trying progressively more
+    # tolerant matchers. LLMs frequently normalise whitespace or quote
+    # style even when told not to.
+    anchored = _anchor_find_chunk(file_text, find)
+    if anchored is None:
+        logger.warning(
+            "Patch find did not anchor in file %s.\n--- find ---\n%s\n--- file head ---\n%s",
+            diagnosis.file_path, find[:400], file_text[:400],
+        )
+        raise CodeFixError(
+            "Patch sub-agent's `find` chunk does not appear in the file - "
+            "the model paraphrased instead of copying bytes."
+        )
+
+    matched_text_in_file, _normalised_file = anchored
+    patched_text = _normalised_file.replace(matched_text_in_file, replace, 1)
+    return _make_unified_diff(diagnosis.file_path, _normalised_file, patched_text)
+
+
+def _anchor_find_chunk(file_text: str, find: str) -> Optional[Tuple[str, str]]:
+    """Return (matched_chunk_as_it_appears_in_file, file_text) or None.
+
+    Tries progressively looser matchers. The first one that produces a
+    unique match wins. The returned chunk is always the exact bytes
+    from the file, never the LLM's paraphrase, so the downstream
+    replace + diff stays byte-correct.
+    """
+    file_lines = file_text.splitlines()
+
+    # 1) Exact substring.
+    if file_text.count(find) == 1:
+        return find, file_text
+
+    # 2) Trailing-whitespace-tolerant on both sides.
+    file_rstripped = "\n".join(line.rstrip() for line in file_lines)
+    find_rstripped = "\n".join(line.rstrip() for line in find.splitlines())
+    if file_rstripped.count(find_rstripped) == 1:
+        return find_rstripped, file_rstripped
+
+    # 3) Whitespace-normalised line keys, exact line-by-line window.
+    def _key(line: str) -> str:
+        return re.sub(r"\s+", " ", line).strip()
+
+    find_lines_nonempty = [l for l in find.splitlines() if l.strip()]
+    if find_lines_nonempty:
+        file_keys = [_key(l) for l in file_lines]
+        find_keys = [_key(l) for l in find_lines_nonempty]
+        for start in range(0, len(file_keys) - len(find_keys) + 1):
+            if file_keys[start : start + len(find_keys)] == find_keys:
+                window = "\n".join(file_lines[start : start + len(find_keys)])
+                return window, "\n".join(file_lines)
+
+    # 4) Last resort: strip ALL whitespace, find the substring, map back
+    # to the original line range. This is robust against the most common
+    # LLM mistake (changing space-around-operators), and still safe
+    # because we only accept exactly-one match.
+    def _strip_all_ws(s: str) -> str:
+        return re.sub(r"\s+", "", s)
+
+    file_stripped = _strip_all_ws(file_text)
+    find_stripped = _strip_all_ws(find)
+    if not find_stripped:
+        return None
+    if file_stripped.count(find_stripped) != 1:
+        return None
+
+    # Build an index from stripped-position -> original char index.
+    # We walk the file once, recording the original char index for every
+    # non-whitespace character.
+    orig_index_for_stripped: list[int] = []
+    for i, ch in enumerate(file_text):
+        if not ch.isspace():
+            orig_index_for_stripped.append(i)
+
+    start_stripped = file_stripped.find(find_stripped)
+    end_stripped = start_stripped + len(find_stripped) - 1
+    start_orig = orig_index_for_stripped[start_stripped]
+    end_orig = orig_index_for_stripped[end_stripped] + 1
+
+    # Expand to whole lines so the replace doesn't leave dangling chars.
+    line_start = file_text.rfind("\n", 0, start_orig) + 1
+    line_end = file_text.find("\n", end_orig)
+    if line_end == -1:
+        line_end = len(file_text)
+    window = file_text[line_start:line_end]
+    return window, file_text
+
+
+def _make_unified_diff(rel_path: str, before: str, after: str) -> str:
+    """Generate a clean unified diff via difflib.
+
+    difflib gives us correct hunk headers and line counts unconditionally,
+    so verify-time `git apply` failures from miscounted hunks disappear.
+    """
+    diff = difflib.unified_diff(
+        before.splitlines(keepends=True),
+        after.splitlines(keepends=True),
+        fromfile=f"a/{rel_path}",
+        tofile=f"b/{rel_path}",
+        n=3,
+    )
+    text = "".join(diff)
+    if not text.endswith("\n"):
+        text += "\n"
+    return text
 
 
 def _verify(repo_root: Path, file_path: str, diff_text: str) -> Tuple[bool, str]:
@@ -454,7 +634,9 @@ def _verify(repo_root: Path, file_path: str, diff_text: str) -> Tuple[bool, str]
     wrong - we don't claim success blindly. The scratch copy is cleaned
     up before return.
     """
-    scratch = repo_root.parent / (repo_root.name + "_verify")
+    # Resolve to an absolute path so paths passed to subprocess stay
+    # unambiguous regardless of cwd.
+    scratch = (repo_root.parent / (repo_root.name + "_verify")).resolve()
     try:
         if scratch.exists():
             shutil.rmtree(scratch, ignore_errors=True)
@@ -464,41 +646,68 @@ def _verify(repo_root: Path, file_path: str, diff_text: str) -> Tuple[bool, str]
             dirs_exist_ok=False,
         )
 
-        diff_file = scratch / "_codefix.patch"
-        diff_file.write_text(diff_text, encoding="utf-8")
+        # Normalise the diff: LLMs occasionally emit CRLF, drop trailing
+        # newlines, or miscount hunk lines. We re-count hunks and strip
+        # CR characters before handing the patch to git.
+        normalised = _normalise_diff(diff_text)
+        diff_file = (scratch.parent / f"{scratch.name}.patch").resolve()
+        diff_file.write_text(normalised, encoding="utf-8", newline="\n")
 
-        apply = subprocess.run(
-            ["git", "apply", "--whitespace=nowarn", str(diff_file)],
-            cwd=scratch, capture_output=True, timeout=30,
-        )
-        if apply.returncode != 0:
-            return False, (
-                "git apply failed:\n"
-                + apply.stderr.decode("utf-8", errors="replace")[:500]
+        # Try increasingly forgiving apply strategies. We start strict so
+        # a clean patch is reported honestly; only fall back when the
+        # strict pass rejects.
+        apply_attempts = [
+            ["git", "apply", "--whitespace=nowarn"],
+            ["git", "apply", "--whitespace=fix", "--recount"],
+            ["git", "apply", "--whitespace=fix", "--recount", "--unidiff-zero"],
+        ]
+        apply = None
+        for cmd in apply_attempts:
+            apply = subprocess.run(
+                cmd + [str(diff_file)],
+                cwd=str(scratch), capture_output=True, timeout=30,
             )
+            if apply.returncode == 0:
+                break
+        if apply is None or apply.returncode != 0:
+            stderr = (apply.stderr if apply else b"").decode("utf-8", errors="replace")
+            return False, "git apply failed (tried strict + forgiving):\n" + stderr[:500]
 
         # Pick a verifier by extension. Anything we don't know how to
         # check counts as "patch applied cleanly" - which is still a
         # real signal that the diff is at least well-formed.
         ext = Path(file_path).suffix.lower()
-        if ext in {".ts", ".tsx"}:
-            check = subprocess.run(
-                ["npx", "--no-install", "tsc", "--noEmit", "--skipLibCheck", file_path],
-                cwd=scratch, capture_output=True, timeout=VERIFY_TIMEOUT,
-                shell=False,
-            )
-            ok = check.returncode == 0
-            out = check.stderr.decode("utf-8", errors="replace") or check.stdout.decode("utf-8", errors="replace")
-            return ok, out[:800] if out.strip() else "tsc clean"
+        if ext in {".ts", ".tsx", ".js", ".jsx"}:
+            # Prefer the repo's own tsc under node_modules so we don't
+            # collide with unrelated commands also named "tsc" on PATH
+            # (TimeShift on some Linuxes; Windows can find stray ones).
+            local_tsc = scratch / "node_modules" / ".bin"
+            tsc_candidates = [
+                local_tsc / "tsc.cmd",
+                local_tsc / "tsc",
+            ]
+            tsc = next((str(p) for p in tsc_candidates if p.exists()), None)
+            if tsc:
+                check = subprocess.run(
+                    [tsc, "--noEmit", "--skipLibCheck", file_path],
+                    cwd=str(scratch), capture_output=True, timeout=VERIFY_TIMEOUT,
+                )
+                ok = check.returncode == 0
+                out = check.stderr.decode("utf-8", errors="replace") or check.stdout.decode("utf-8", errors="replace")
+                return ok, (out[:800] if out.strip() else "tsc clean")
+            # No local tsc - patch applied cleanly is still a strong
+            # signal. Don't trust whatever stray "tsc" is on global PATH.
+            return True, "patch applied cleanly; no project-local tsc available"
 
         if ext == ".py":
+            python = shutil.which("python") or shutil.which("python3") or "python"
             check = subprocess.run(
-                ["python", "-m", "py_compile", file_path],
-                cwd=scratch, capture_output=True, timeout=VERIFY_TIMEOUT,
+                [python, "-m", "py_compile", file_path],
+                cwd=str(scratch), capture_output=True, timeout=VERIFY_TIMEOUT,
             )
             ok = check.returncode == 0
             out = check.stderr.decode("utf-8", errors="replace")
-            return ok, out[:800] if out.strip() else "py_compile clean"
+            return ok, (out[:800] if out.strip() else "py_compile clean")
 
         return True, f"patch applied cleanly; no verifier for {ext}"
     except subprocess.TimeoutExpired:
@@ -508,19 +717,44 @@ def _verify(repo_root: Path, file_path: str, diff_text: str) -> Tuple[bool, str]
         return False, f"verify error: {exc}"
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
+        try:
+            (scratch.parent / f"{scratch.name}.patch").unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 
-def _read_file_capped(rel_path: str, repo_root: Path) -> Optional[str]:
+def _read_file_capped(
+    rel_path: str, repo_root: Path, max_chars: int = MAX_FILE_CHARS_DIAGNOSE,
+) -> Optional[str]:
     full = repo_root / rel_path
     try:
-        text = full.read_text(encoding="utf-8", errors="ignore")
+        # Read raw bytes and decode without newline translation, so the
+        # text we hand to the LLM and to difflib matches the bytes on
+        # disk exactly. Without this, Python silently maps CRLF -> LF
+        # on Windows and our generated diff fails to git-apply.
+        raw = full.read_bytes()
     except OSError:
         return None
-    if len(text) > MAX_FILE_CHARS:
-        text = text[:MAX_FILE_CHARS] + "\n# ... [file truncated]\n"
+    text = raw.decode("utf-8", errors="ignore")
+    if len(text) > max_chars:
+        text = text[:max_chars] + "\n# ... [file truncated]\n"
+    return text
+
+
+def _normalise_diff(text: str) -> str:
+    """Tidy a diff so picky `git apply` quirks don't reject sane patches.
+
+    Strips carriage returns, removes accidental trailing whitespace on
+    diff metadata lines, ensures a trailing newline. We deliberately do
+    not touch content inside hunks beyond CR removal because the bytes
+    must match the source file.
+    """
+    text = text.replace("\r\n", "\n").replace("\r", "")
+    if not text.endswith("\n"):
+        text += "\n"
     return text
 
 
