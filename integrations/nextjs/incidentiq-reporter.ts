@@ -10,15 +10,21 @@
  *   - Or call `reportIncident({ title, logs })` directly when you
  *     catch an error you want analysed.
  *
- * Configuration: set INCIDENTIQ_WEBHOOK_URL in your environment, e.g.
- *   INCIDENTIQ_WEBHOOK_URL=https://incidentiq.your-domain.com/api/v1/webhook/generic
+ * The reporter is "fan-out": every error simultaneously ships to up to
+ * four destinations, gated by env vars. Any subset can be configured.
  *
- * For local dev pointing at a local IncidentIQ:
- *   INCIDENTIQ_WEBHOOK_URL=http://localhost:8000/api/v1/webhook/generic
+ *   INCIDENTIQ_WEBHOOK_URL   -> POSTs to IncidentIQ's webhook directly
+ *   DATADOG_API_KEY          -> ships log entries to Datadog Logs HTTP intake
+ *   GRAFANA_LOKI_URL +
+ *   GRAFANA_LOKI_AUTH        -> pushes to Loki's HTTP push endpoint
+ *   NEW_RELIC_LICENSE_KEY    -> ships to New Relic Logs HTTP API
  *
- * The reporter is best-effort: it never throws, never blocks your app's
- * response. If IncidentIQ is unreachable the error stays logged but
- * your user-facing flow continues as before.
+ * The four shippers run in parallel (Promise.allSettled) and are
+ * fire-and-forget: none of them block your route handler's response.
+ *
+ * This is what makes the architecture match the problem statement -
+ * your real app's logs flow into the same monitoring tools (Datadog,
+ * Grafana, New Relic) that IncidentIQ then connects to and analyses.
  */
 
 interface ReportArgs {
@@ -94,51 +100,184 @@ export function note(
   pushLog(fmtLine(level, service, message));
 }
 
-/**
- * Ship an incident report to IncidentIQ. Best-effort and non-blocking:
- * any failure to reach IncidentIQ is swallowed (and logged to console).
- *
- * The function returns a Promise but you generally don't need to await it.
- */
-export async function reportIncident(args: ReportArgs): Promise<void> {
+// ── Destination shippers ────────────────────────────────────────────────
+// Each shipper is best-effort. Failures are swallowed in production.
+
+async function shipIncidentIQ(args: ReportArgs, lines: string[]): Promise<void> {
   const url =
     process.env.INCIDENTIQ_WEBHOOK_URL ||
     process.env.NEXT_PUBLIC_INCIDENTIQ_WEBHOOK_URL ||
     "";
-  if (!url) {
-    // Not configured. Don't spam; just log once at startup if missing.
-    return;
-  }
+  if (!url) return;
 
-  // Prepend the manual logs onto the ring-buffer tail so the report has
-  // both the explicit error context and any recent surrounding logs.
-  const ring = recentLogs().slice(-30);
-  const payload = {
-    title: args.title.slice(0, 240),
-    logs: `${ring.join("\n")}\n${args.logs}`.trim(),
-    ...(args.service ? { service_hint: args.service } : {}),
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: args.title.slice(0, 240),
+      logs: `${lines.join("\n")}\n${args.logs}`.trim(),
+      ...(args.service ? { service_hint: args.service } : {}),
+    }),
+    keepalive: true,
+  });
+}
+
+async function shipDatadog(args: ReportArgs, lines: string[]): Promise<void> {
+  const key = process.env.DATADOG_API_KEY;
+  if (!key) return;
+  const site = process.env.DATADOG_SITE || "datadoghq.com";
+  const service = args.service || "next-app";
+
+  // Datadog accepts an array of structured log entries. Each line in
+  // the ring buffer becomes one entry so they can be filtered and
+  // queried individually in Datadog's Logs Explorer.
+  const allLines = [...lines, ...args.logs.split("\n").filter(Boolean)];
+  const entries = allLines.map((line) => {
+    const level =
+      /\bFATAL\b/i.test(line)
+        ? "fatal"
+        : /\bERROR\b/i.test(line)
+        ? "error"
+        : /\bWARN\b/i.test(line)
+        ? "warn"
+        : "info";
+    return {
+      message: line,
+      ddsource: "nodejs",
+      service,
+      hostname: process.env.VERCEL_URL || "local",
+      ddtags: `env:${process.env.NODE_ENV ?? "development"},source:incidentiq-reporter`,
+      status: level,
+    };
+  });
+
+  await fetch(`https://http-intake.logs.${site}/api/v2/logs`, {
+    method: "POST",
+    headers: {
+      "DD-API-KEY": key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(entries),
+    keepalive: true,
+  });
+}
+
+async function shipGrafanaLoki(args: ReportArgs, lines: string[]): Promise<void> {
+  // GRAFANA_LOKI_URL e.g. https://logs-prod-006.grafana.net
+  // GRAFANA_LOKI_AUTH must be "<userId>:<apiToken>" for Grafana Cloud
+  const lokiUrl = process.env.GRAFANA_LOKI_URL;
+  const lokiAuth = process.env.GRAFANA_LOKI_AUTH;
+  if (!lokiUrl || !lokiAuth) return;
+
+  const service = args.service || "next-app";
+  const allLines = [...lines, ...args.logs.split("\n").filter(Boolean)];
+  const nowNs = (Date.now() * 1_000_000).toString();
+
+  // Loki "push" format: one stream with labels + many values.
+  const body = {
+    streams: [
+      {
+        stream: {
+          service,
+          source: "incidentiq-reporter",
+          env: process.env.NODE_ENV ?? "development",
+        },
+        values: allLines.map(
+          (line, i) =>
+            [(BigInt(nowNs) + BigInt(i)).toString(), line] as [string, string],
+        ),
+      },
+    ],
   };
 
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      // Vercel functions: don't hold up the response on this call.
-      keepalive: true,
+  await fetch(`${lokiUrl.replace(/\/$/, "")}/loki/api/v1/push`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(lokiAuth).toString("base64")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    keepalive: true,
+  });
+}
+
+async function shipNewRelic(args: ReportArgs, lines: string[]): Promise<void> {
+  // NEW_RELIC_LICENSE_KEY is the license/ingest key (NRII-... or NRAK-...)
+  // Different from the user key used by IncidentIQ to query NerdGraph.
+  const key = process.env.NEW_RELIC_LICENSE_KEY;
+  if (!key) return;
+
+  // Default to US. Use NEW_RELIC_EU=1 if you're in EU region.
+  const host =
+    process.env.NEW_RELIC_EU === "1"
+      ? "https://log-api.eu.newrelic.com"
+      : "https://log-api.newrelic.com";
+
+  const service = args.service || "next-app";
+  const allLines = [...lines, ...args.logs.split("\n").filter(Boolean)];
+  const payload = [
+    {
+      common: {
+        attributes: {
+          service,
+          source: "incidentiq-reporter",
+          env: process.env.NODE_ENV ?? "development",
+          hostname: process.env.VERCEL_URL || "local",
+        },
+      },
+      logs: allLines.map((line) => ({
+        message: line,
+        timestamp: Date.now(),
+      })),
+    },
+  ];
+
+  await fetch(`${host}/log/v1`, {
+    method: "POST",
+    headers: {
+      "Api-Key": key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    keepalive: true,
+  });
+}
+
+/**
+ * Ship an incident report to every configured destination. Best-effort and
+ * non-blocking: any failure is swallowed and never breaks the caller's flow.
+ *
+ * Destinations are gated by environment variables, so configuring only
+ * one (or zero) is fine - the others stay dormant.
+ *
+ * Returns a Promise but you generally don't need to await it. The typical
+ * pattern is `void reportIncident({...})` from inside a catch block.
+ */
+export async function reportIncident(args: ReportArgs): Promise<void> {
+  const ring = recentLogs().slice(-30);
+
+  const tasks: Array<Promise<void>> = [
+    shipIncidentIQ(args, ring),
+    shipDatadog(args, ring),
+    shipGrafanaLoki(args, ring),
+    shipNewRelic(args, ring),
+  ];
+
+  const results = await Promise.allSettled(tasks);
+  if (process.env.NODE_ENV !== "production") {
+    const names = ["incidentiq", "datadog", "grafana-loki", "new-relic"];
+    results.forEach((res, i) => {
+      if (res.status === "rejected") {
+        // eslint-disable-next-line no-console
+        console.error(`[incidentiq-reporter] ${names[i]} ship failed:`, res.reason);
+      }
     });
-  } catch (err) {
-    // Silent. We never want this to break the user's request.
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.error("[incidentiq] reporter failed:", err);
-    }
   }
 }
 
 /**
  * Wrap a Next.js route handler or server action so any thrown error is
- * automatically reported to IncidentIQ before being re-thrown.
+ * automatically reported to all configured destinations before being re-thrown.
  *
  * Usage (App Router):
  *
@@ -164,8 +303,6 @@ export function withIncidentReporting<TArgs extends unknown[], TReturn>(
       note("ERROR", service, `${e.name}: ${e.message}`);
       if (e.stack) note("ERROR", service, e.stack.split("\n").slice(0, 6).join("\n"));
 
-      // Fire-and-forget. We use a void here so this doesn't suspend
-      // the caller's error path.
       void reportIncident({
         title: `${titlePrefix} - ${e.message.slice(0, 120)}`,
         logs: `${e.name}: ${e.message}\n${e.stack ?? ""}`,
