@@ -46,55 +46,64 @@ async def list_integrations(
     """
     statuses: List[IntegrationStatus] = []
 
+    # For each integration, ``connected`` and ``enabled`` move together:
+    # the frontend IntegrationCard interprets `enabled=true, connected=false`
+    # as "configured but the upstream is unreachable" and slaps a red error
+    # pill on it. We don't ping the upstream here (validation happens at
+    # save time), so we set both to the same boolean. A future change can
+    # split them by adding a real reachability ping.
     dd_overrides = session_store.get_datadog(session_id)
+    dd_ok = bool(
+        dd_overrides
+        and getattr(dd_overrides, "api_key", None)
+        and getattr(dd_overrides, "app_key", None)
+    )
     statuses.append(
         IntegrationStatus(
             name="Datadog",
-            connected=bool(
-                dd_overrides
-                and getattr(dd_overrides, "api_key", None)
-                and getattr(dd_overrides, "app_key", None)
-            ),
-            enabled=True,
+            connected=dd_ok,
+            enabled=dd_ok,
             detail=(
                 f"Connected to {getattr(dd_overrides, 'site', None) or 'datadoghq.com'}"
-                if dd_overrides
+                if dd_ok
                 else "Paste your Datadog API key + App key on the Settings page to enable."
             ),
         ),
     )
 
     gf_overrides = session_store.get_grafana(session_id)
+    gf_ok = bool(
+        gf_overrides
+        and getattr(gf_overrides, "url", None)
+        and getattr(gf_overrides, "api_key", None)
+    )
     statuses.append(
         IntegrationStatus(
             name="Grafana",
-            connected=bool(
-                gf_overrides
-                and getattr(gf_overrides, "url", None)
-                and getattr(gf_overrides, "api_key", None)
-            ),
-            enabled=True,
+            connected=gf_ok,
+            enabled=gf_ok,
             detail=(
                 f"Connected to {getattr(gf_overrides, 'url', '')}"
-                if gf_overrides
+                if gf_ok
                 else "Paste your Loki URL + access token on the Settings page to enable."
             ),
         ),
     )
 
     nr_overrides = session_store.get_newrelic(session_id)
+    nr_ok = bool(
+        nr_overrides
+        and getattr(nr_overrides, "user_key", None)
+        and getattr(nr_overrides, "account_id", None)
+    )
     statuses.append(
         IntegrationStatus(
             name="New Relic",
-            connected=bool(
-                nr_overrides
-                and getattr(nr_overrides, "user_key", None)
-                and getattr(nr_overrides, "account_id", None)
-            ),
-            enabled=True,
+            connected=nr_ok,
+            enabled=nr_ok,
             detail=(
                 f"Connected (account {getattr(nr_overrides, 'account_id', '')})"
-                if nr_overrides
+                if nr_ok
                 else "Paste your User Key + Account ID on the Settings page to enable."
             ),
         ),
@@ -181,11 +190,19 @@ def _require_session(
     session_id: Optional[str],
     session_store: SessionCredentialStore,
 ) -> str:
+    """Pin the credential entry to the caller's identity.
+
+    Older versions threw away the caller's session id if it wasn't
+    already in the in-memory store and issued a fresh random one - which
+    meant after any backend restart, the user's pasted Datadog creds
+    landed under a new key the frontend never read back from. We now
+    trust whatever identifier the request carries (gh:/fb:/guest: from
+    X-IIQ-User, or a legacy X-IIQ-Session uuid) and let the store create
+    the entry lazily on first write.
+    """
     if not session_id:
-        # The frontend should call POST /session/new on first load to
-        # get one. Reaching this endpoint without one is a client bug.
         return session_store.issue_session_id()
-    return session_store.get_or_create(session_id)
+    return session_id
 
 
 @router.post("/integrations/datadog/credentials")
