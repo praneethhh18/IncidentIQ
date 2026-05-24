@@ -86,24 +86,38 @@ class DatadogIntegration(MonitoringIntegration):
     async def list_recent_services(self, window_minutes: int = 60) -> list[str]:
         """Return distinct service names that emitted error/warn logs recently.
 
-        Hits the Datadog Logs aggregate API; falls back to a small probe
-        via the search API if aggregate fails (or no creds, returns an
-        empty list so the UI can degrade to manual entry).
+        Tries the Logs Analytics Aggregate endpoint first (gives us
+        deduped service names quickly). If that 400s for any reason -
+        Datadog is picky about timestamps and tenant variants - we fall
+        back to a small Search API call and bucket services client-side.
+        Returns an empty list only when both fail or no creds.
         """
         if not self.is_configured():
             return []
 
+        services = await self._list_services_via_aggregate(window_minutes)
+        if services:
+            return services
+        return await self._list_services_via_search(window_minutes)
+
+    async def _list_services_via_aggregate(self, window_minutes: int) -> list[str]:
         url = f"{self._base_url}/api/v2/logs/analytics/aggregate"
-        now = datetime.now(timezone.utc)
+        # Use Datadog's relative-time strings instead of ISO timestamps.
+        # The aggregate endpoint is fussy about timezone formatting and
+        # 'now-Xm' is the form their docs and console use.
         body = {
+            "compute": [{"aggregation": "count", "type": "total"}],
             "filter": {
+                "from": f"now-{int(window_minutes)}m",
+                "to": "now",
                 "query": "status:error OR status:warn",
-                "from": (now - timedelta(minutes=window_minutes)).isoformat(),
-                "to": now.isoformat(),
             },
-            "compute": [{"aggregation": "count"}],
             "group_by": [
-                {"facet": "service", "limit": 25, "sort": {"aggregation": "count", "order": "desc"}}
+                {
+                    "facet": "service",
+                    "limit": 25,
+                    "sort": {"aggregation": "count", "order": "desc"},
+                }
             ],
         }
         headers = {
@@ -114,10 +128,16 @@ class DatadogIntegration(MonitoringIntegration):
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(url, json=body, headers=headers)
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    logger.warning(
+                        "Datadog aggregate %s: %s",
+                        resp.status_code,
+                        resp.text[:300],
+                    )
+                    return []
                 payload = resp.json()
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Datadog list_recent_services failed: %s", exc)
+            logger.warning("Datadog aggregate call failed: %s", exc)
             return []
 
         buckets = (payload.get("data") or {}).get("buckets") or []
@@ -127,6 +147,48 @@ class DatadogIntegration(MonitoringIntegration):
             if svc and svc not in names:
                 names.append(svc)
         return names
+
+    async def _list_services_via_search(self, window_minutes: int) -> list[str]:
+        """Fallback: pull recent events and bucket by `service` ourselves."""
+        url = f"{self._base_url}/api/v2/logs/events/search"
+        now = datetime.now(timezone.utc)
+        body = {
+            "filter": {
+                "query": "status:error OR status:warn",
+                "from": (now - timedelta(minutes=window_minutes)).isoformat(),
+                "to": now.isoformat(),
+            },
+            "page": {"limit": 200},
+            "sort": "-timestamp",
+        }
+        headers = {
+            "DD-API-KEY": self._settings.datadog_api_key or "",
+            "DD-APPLICATION-KEY": self._settings.datadog_app_key or "",
+            "Content-Type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(url, json=body, headers=headers)
+                if resp.status_code >= 400:
+                    logger.warning(
+                        "Datadog search %s: %s",
+                        resp.status_code,
+                        resp.text[:300],
+                    )
+                    return []
+                payload = resp.json()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Datadog search fallback failed: %s", exc)
+            return []
+
+        seen: list[str] = []
+        for event in payload.get("data", []):
+            svc = (event.get("attributes") or {}).get("service")
+            if svc and svc not in seen:
+                seen.append(svc)
+                if len(seen) >= 25:
+                    break
+        return seen
 
     async def status(self) -> IntegrationStatus:
         if not self.is_configured():

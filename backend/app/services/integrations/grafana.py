@@ -45,7 +45,15 @@ class GrafanaIntegration(MonitoringIntegration):
     ) -> str:
         if not self.is_configured():
             logger.info("Grafana not configured — returning seeded log stream")
-            return f"# [demo] Grafana/Loki stream — query={query or '{job=~\".+\"}'} window={window_minutes}m\n{DB_OUTAGE_LOGS}"
+            # Build the default-query placeholder outside the f-string so
+            # Python 3.11 doesn't complain about backslashes inside an
+            # f-string expression part.
+            default_query = '{job=~".+"}'
+            display_query = query or default_query
+            return (
+                f"# [demo] Grafana/Loki stream — query={display_query} "
+                f"window={window_minutes}m\n{DB_OUTAGE_LOGS}"
+            )
 
         # Grafana exposes Loki at /api/datasources/proxy/<id>/loki/api/v1/...
         # We accept the user pointing GRAFANA_URL directly at the Loki API
