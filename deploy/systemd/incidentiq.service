@@ -1,6 +1,6 @@
 [Unit]
 Description=IncidentIQ FastAPI backend (uvicorn)
-Documentation=https://github.com/praneethhh18/IncidentIQ-AI-Incident-Root-Cause-Analyzer
+Documentation=https://github.com/praneethhh18/IncidentIQ
 After=network-online.target
 Wants=network-online.target
 

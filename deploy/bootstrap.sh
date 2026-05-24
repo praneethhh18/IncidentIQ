@@ -4,7 +4,7 @@
 # Run this ONCE on a fresh Ubuntu 24.04 box (via EC2 Instance Connect
 # or local SSH). Idempotent: safe to re-run if a step failed halfway.
 #
-#   curl -fsSL https://raw.githubusercontent.com/praneethhh18/IncidentIQ-AI-Incident-Root-Cause-Analyzer/main/deploy/bootstrap.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/praneethhh18/IncidentIQ/main/deploy/bootstrap.sh | sudo bash
 #
 # What it does:
 #   1. Installs system deps (Python venv, nginx, certbot, git)
@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-REPO_URL="https://github.com/praneethhh18/IncidentIQ-AI-Incident-Root-Cause-Analyzer.git"
+REPO_URL="https://github.com/praneethhh18/IncidentIQ.git"
 INSTALL_DIR="/opt/incidentiq"
 SERVICE_USER="ubuntu"
 DOMAIN="api.nexusagent.in"

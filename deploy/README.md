@@ -18,7 +18,7 @@ ports 22/80/443 open in the security group.
 From an SSH session or EC2 Instance Connect terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/praneethhh18/IncidentIQ-AI-Incident-Root-Cause-Analyzer/main/deploy/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/praneethhh18/IncidentIQ/main/deploy/bootstrap.sh | sudo bash
 ```
 
 This clones the repo, builds the venv, installs nginx + certbot, and
