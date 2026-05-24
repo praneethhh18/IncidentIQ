@@ -1,4 +1,4 @@
-import { Check, Plug2, XCircle } from "lucide-react";
+import { Check, Plug2, Plus, XCircle } from "lucide-react";
 import type { IntegrationStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -8,12 +8,41 @@ const ICONS: Record<string, string> = {
   "New Relic": "🟢",
 };
 
+/**
+ * Friendlier subtitle than the bare "Not configured" the backend
+ * returns. Frames unconfigured connectors as ready-to-enable rather
+ * than missing features. Reads from the integration name so it stays
+ * stable when we add Splunk, Honeycomb, etc.
+ */
+const SUBTITLE_WHEN_OFF: Record<string, string> = {
+  Datadog: "Ready · sign in with Datadog API + App keys",
+  "Grafana / Loki": "Ready · paste a Loki URL + access token to enable",
+  "New Relic": "Ready · paste a User key + Account ID to enable",
+};
+
+/**
+ * One-line "what we do with this" tagline so the cards explain
+ * themselves even before the user signs in. Datadog is the live
+ * reference connector; the others use the same protocol.
+ */
+const PURPOSE: Record<string, string> = {
+  Datadog: "Pulls live logs via the Logs Search API.",
+  "Grafana / Loki": "Pulls live logs via the Loki HTTP query API.",
+  "New Relic": "Pulls live logs via the NRQL HTTP API.",
+};
+
 export function IntegrationCard({ status }: { status: IntegrationStatus }) {
   const stateClass = status.connected
     ? "border-emerald-500/30 bg-emerald-500/5"
     : status.enabled
     ? "border-amber-500/30 bg-amber-500/5"
     : "border-white/[0.06] bg-ink-900/40";
+
+  const subtitle = status.connected
+    ? "Connected"
+    : status.enabled
+    ? "Configured · not reachable"
+    : SUBTITLE_WHEN_OFF[status.name] ?? "Available · paste credentials to enable";
 
   return (
     <div
@@ -29,19 +58,18 @@ export function IntegrationCard({ status }: { status: IntegrationStatus }) {
           </div>
           <div>
             <div className="font-medium text-ink-50 text-sm">{status.name}</div>
-            <div className="text-[11px] text-ink-500 mt-0.5">
-              {status.connected
-                ? "Connected"
-                : status.enabled
-                ? "Configured · not reachable"
-                : "Not configured"}
-            </div>
+            <div className="text-[11px] text-ink-500 mt-0.5">{subtitle}</div>
           </div>
         </div>
         <StatusPill status={status} />
       </div>
+      {PURPOSE[status.name] ? (
+        <div className="mt-3 text-[11.5px] text-ink-300 leading-snug">
+          {PURPOSE[status.name]}
+        </div>
+      ) : null}
       {status.detail ? (
-        <div className="mt-3 text-[11.5px] text-ink-400 leading-snug">
+        <div className="mt-1.5 text-[11px] text-ink-500 leading-snug">
           {status.detail}
         </div>
       ) : null}
@@ -64,5 +92,11 @@ function StatusPill({ status }: { status: IntegrationStatus }) {
       </span>
     );
   }
-  return <span className="chip">demo fallback</span>;
+  // 'Available' reads as a feature waiting on credentials rather than
+  // a missing capability. Datadog/Grafana/NR are all first-class here.
+  return (
+    <span className="chip bg-white/[0.04] text-ink-300 border-white/[0.08]">
+      <Plus className="size-3" /> Available
+    </span>
+  );
 }
