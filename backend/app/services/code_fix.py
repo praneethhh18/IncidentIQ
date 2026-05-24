@@ -66,6 +66,25 @@ SKIP_DIRS = {
     "coverage", ".turbo",
 }
 
+# Path fragments that should never win the locate ranking even if their
+# files contain incident signature terms. These are typically the very
+# files that PRODUCE the signal we're searching for (chaos endpoints,
+# log shippers, test fixtures) - picking them would mean 'fixing' the
+# observability tooling instead of the actual application bug. Match
+# is substring against the unix-normalised path so e.g. '/api/demo/'
+# catches src/app/api/demo/break/route.ts on every OS.
+LOCATE_EXCLUDED_PATH_FRAGMENTS = (
+    "/api/demo/",
+    "/demo/break",
+    "incidentiq-reporter",
+    "/__tests__/",
+    "/__mocks__/",
+    "/fixtures/",
+    "/test-fixtures/",
+    ".test.",
+    ".spec.",
+)
+
 
 # ── Public API ────────────────────────────────────────────────────────────
 
@@ -348,7 +367,7 @@ def _rg_files(repo_root: Path, term: str) -> List[str]:
         out = proc.stdout.decode("utf-8", errors="replace")
         for line in out.splitlines():
             rel = _safe_relpath(line.strip(), repo_root)
-            if rel and not _is_skipped(rel):
+            if rel and not _is_skipped(rel) and not _is_locate_excluded(rel):
                 rel_paths.append(rel)
         return rel_paths
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -360,7 +379,7 @@ def _rg_files(repo_root: Path, term: str) -> List[str]:
         if not path.is_file():
             continue
         rel = _safe_relpath(str(path), repo_root)
-        if not rel or _is_skipped(rel):
+        if not rel or _is_skipped(rel) or _is_locate_excluded(rel):
             continue
         if path.suffix.lower() not in SOURCE_EXTENSIONS:
             continue
@@ -382,6 +401,18 @@ def _safe_relpath(absolute: str, root: Path) -> Optional[str]:
 def _is_skipped(rel_path: str) -> bool:
     parts = rel_path.split("/")
     return any(p in SKIP_DIRS for p in parts)
+
+
+def _is_locate_excluded(rel_path: str) -> bool:
+    """True if the file should not appear in locate results.
+
+    Substring match on the unix-normalised path so the fragments
+    catch nested cases (e.g. ``foo/src/app/api/demo/break/route.ts``).
+    Used to suppress synthetic-log producers like chaos endpoints,
+    log-shipper libraries, and test fixtures.
+    """
+    normalised = "/" + rel_path.replace("\\", "/").lstrip("/")
+    return any(frag in normalised for frag in LOCATE_EXCLUDED_PATH_FRAGMENTS)
 
 
 def _diagnose(
